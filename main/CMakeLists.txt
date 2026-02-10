@@ -1,6 +1,7 @@
-idf_component_register(SRCS "main.c" 
+idf_component_register(SRCS "store.c" "main.c" 
                             "gpio_control.c" 
                             "jsonrpc.c" 
+                            "jsonrpc_methods.c"
                             "http_server.c" 
                             "ble_server.c" 
                             "wifi_manager.c"
