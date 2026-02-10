@@ -4,6 +4,8 @@
 #include "esp_log.h"
 #include "esp_netif.h"
 #include "nvs_flash.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 #include "config.h"
 #include "gpio_control.h"
 #include "wifi_manager.h"
@@ -28,11 +30,14 @@ void app_main(void)
     /* Initialize GPIO */
     gpio_control_init();
 
-    /* Initialize BLE */
-    ble_server_init();
+    /* Initialize RGB LED */
+    rgb_led_init();
 
-    /* Initialize WiFi */
+    /* Initialize WiFi (must be before BLE to allow BLE provisioning if needed) */
     wifi_manager_init();
+
+    /* Initialize BLE (after WiFi is connected) */
+    ble_server_init();
 
     /* Get and print IP address */
     esp_netif_ip_info_t ip_info;

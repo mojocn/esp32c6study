@@ -4,6 +4,10 @@
 #include <stdint.h>
 #include "esp_err.h"
 
+/* LED Strip Configuration */
+#define RGB_LED_GPIO 8
+#define LED_NUM 1
+
 /**
  * @brief Initialize GPIO for light control
  */
@@ -15,5 +19,10 @@ void gpio_control_init(void);
  * @return ESP_OK on success
  */
 esp_err_t gpio_set_light_state(uint8_t state);
+
+/**
+ * @brief Initialize RGB LED strip
+ */
+void rgb_led_init(void);
 
 #endif // GPIO_CONTROL_H
