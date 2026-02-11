@@ -92,18 +92,8 @@ char *jsonrpc_process_request(const char *request_str)
         /* Method not found or invalid parameters */
         if (!is_notification)
         {
-            if (strcmp(method->valuestring, "echo") != 0 &&
-                strcmp(method->valuestring, "add") != 0 &&
-                strcmp(method->valuestring, "subtract") != 0 &&
-                strcmp(method->valuestring, "get_system_info") != 0 &&
-                strcmp(method->valuestring, "light") != 0)
-            {
-                response_str = jsonrpc_error_response(id_exists, id_value, JSONRPC_METHOD_NOT_FOUND, "Method not found");
-            }
-            else
-            {
-                response_str = jsonrpc_error_response(id_exists, id_value, JSONRPC_INVALID_PARAMS, "Invalid params");
-            }
+
+            response_str = jsonrpc_error_response(id_exists, id_value, JSONRPC_INVALID_PARAMS, "Invalid params");
         }
     }
     else

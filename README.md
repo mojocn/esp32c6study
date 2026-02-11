@@ -215,7 +215,6 @@ esp32c6study/
 │   ├── config.h            # Configuration constants
 │   ├── jsonrpc.c/h         # JSON-RPC 2.0 implementation
 │   ├── http_server.c/h     # HTTP server component
-│   ├── ble_server.c/h      # BLE server component
 │   ├── wifi_manager.c/h    # WiFi connection management
 │   ├── gpio_control.c/h    # GPIO control functions
 │   └── CMakeLists.txt

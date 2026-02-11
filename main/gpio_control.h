@@ -1,12 +1,14 @@
 #ifndef GPIO_CONTROL_H
 #define GPIO_CONTROL_H
 
-#include <stdint.h>
 #include "esp_err.h"
 
-/* LED Strip Configuration */
-#define RGB_LED_GPIO 8
-#define LED_NUM 1
+#include <stdint.h>
+
+#define GPIO_LIGHT_4 4
+#define GPIO_LIGHT_5 5
+#define GPIO_LIGHT_6 6
+#define GPIO_LIGHT_7 7
 
 /**
  * @brief Initialize GPIO for light control
