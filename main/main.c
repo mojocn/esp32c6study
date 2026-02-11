@@ -1,5 +1,6 @@
 /* JSON-RPC 2.0 HTTP/BLE Server for ESP32-C6 */
 
+#include "ble_server.h"
 #include "config.h"
 #include "esp_log.h"
 #include "esp_netif.h"
@@ -28,7 +29,13 @@ void app_main(void) {
     /* Initialize WiFi (must be before BLE to allow BLE provisioning if needed) */
     initialise_wifi();
 
-
+    /* Initialize BLE GATT Server for JSON-RPC */
+    ESP_LOGI(TAG, "Starting BLE GATT Server...");
+    if (ble_server_init() == ESP_OK) {
+        ESP_LOGI(TAG, "BLE GATT Server started successfully");
+    } else {
+        ESP_LOGE(TAG, "Failed to start BLE GATT Server");
+    }
 
     /* Start HTTP Server */
     http_server_start();

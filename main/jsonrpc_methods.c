@@ -16,8 +16,12 @@ static cJSON *rpc_method_shelly_list_methods(cJSON *params) {
     cJSON *result = cJSON_CreateObject();
     cJSON *methods = cJSON_CreateArray();
 
-    cJSON_AddItemToArray(methods, cJSON_CreateString("EM1Data.GetNetEnergies"));
-    cJSON_AddItemToArray(methods, cJSON_CreateString("EM1Data.SetConfig"));
+    cJSON_AddItemToArray(methods, cJSON_CreateString("Shelly.ListMethods"));
+    cJSON_AddItemToArray(methods, cJSON_CreateString("Wifi.set"));
+    cJSON_AddItemToArray(methods, cJSON_CreateString("subtract"));
+    cJSON_AddItemToArray(methods, cJSON_CreateString("get_system_info"));
+    cJSON_AddItemToArray(methods, cJSON_CreateString("light"));
+    cJSON_AddItemToArray(methods, cJSON_CreateString("BLE.GetInfo"));
 
     cJSON_AddItemToObject(result, "methods", methods);
 
@@ -125,6 +129,23 @@ static cJSON *rpc_method_light(cJSON *params) {
     return result;
 }
 
+/* RPC Method: ble_get_info - returns BLE connection status and info */
+static cJSON *rpc_method_ble_get_info(cJSON *params) {
+    cJSON *info = cJSON_CreateObject();
+
+    // Get BLE MAC address
+    uint8_t mac[6];
+    esp_wifi_get_mac(WIFI_IF_STA, mac);
+    char mac_str[18];
+    snprintf(mac_str, sizeof(mac_str), "%02X:%02X:%02X:%02X:%02X:%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+
+    cJSON_AddStringToObject(info, "mac", mac_str);
+    cJSON_AddBoolToObject(info, "enabled", true);
+    cJSON_AddStringToObject(info, "status", "active");
+
+    return info;
+}
+
 /* RPC Method Dispatcher */
 
 cJSON *dispatch_method(const char *method, cJSON *params) {
@@ -138,6 +159,8 @@ cJSON *dispatch_method(const char *method, cJSON *params) {
         return rpc_method_get_system_info(params);
     } else if (strcmp(method, "light") == 0) {
         return rpc_method_light(params);
+    } else if (strcmp(method, "BLE.GetInfo") == 0) {
+        return rpc_method_ble_get_info(params);
     }
 
     return NULL; // Method not found
