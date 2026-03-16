@@ -23,4 +23,8 @@
 #define DEVICE_NAME "ShellyEric"
 #define WIFI_AP_PASS ""
 
+/* MQTT Configuration */
+#define MQTT_BROKER_URI "mqtt://mqtt.local" /* Change to your broker */
+#define MQTT_HEARTBEAT_INTERVAL_S 10        /* Heartbeat every 10 seconds */
+
 #endif // CONFIG_H

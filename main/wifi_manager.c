@@ -12,7 +12,6 @@
 #include "freertos/task.h"
 #include "nvs_flash.h"
 #include "wifi_provisioning/manager.h"
-#include "wifi_provisioning/scheme_ble.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -69,38 +68,6 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base, int32_t e
     }
 }
 
-/* WiFi Provisioning Event Handler */
-static void prov_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data) {
-    if (event_base == WIFI_PROV_EVENT) {
-        switch (event_id) {
-            case WIFI_PROV_START:
-                ESP_LOGI(TAG, "WiFi provisioning started");
-                break;
-            case WIFI_PROV_CRED_RECV: {
-                wifi_sta_config_t *wifi_sta_cfg = (wifi_sta_config_t *)event_data;
-                ESP_LOGI(TAG, "Received WiFi credentials - SSID: %s", (const char *)wifi_sta_cfg->ssid);
-                break;
-            }
-            case WIFI_PROV_CRED_FAIL: {
-                wifi_prov_sta_fail_reason_t *reason = (wifi_prov_sta_fail_reason_t *)event_data;
-                ESP_LOGE(TAG, "Provisioning failed: %s",
-                         (*reason == WIFI_PROV_STA_AUTH_ERROR) ? "WiFi station authentication failed"
-                                                               : "WiFi AP not found");
-                break;
-            }
-            case WIFI_PROV_CRED_SUCCESS:
-                ESP_LOGI(TAG, "Provisioning successful");
-                break;
-            case WIFI_PROV_END:
-                ESP_LOGI(TAG, "Provisioning ended");
-                wifi_prov_mgr_deinit();
-                break;
-            default:
-                break;
-        }
-    }
-}
-
 void initialise_wifi(void) {
     /* Initialize TCP/IP */
     ESP_ERROR_CHECK(esp_netif_init());
@@ -136,66 +103,36 @@ void initialise_wifi(void) {
         }
     }
 
-    if (!provisioned) {
-        ESP_LOGI(TAG, "No WiFi credentials found, starting BLE provisioning");
+    ESP_LOGI(TAG, "WiFi credentials found in NVS");
 
-        /* Configure provisioning manager */
-        wifi_prov_mgr_config_t prov_config = {
-            .scheme = wifi_prov_scheme_ble,
-            .scheme_event_handler = WIFI_PROV_SCHEME_BLE_EVENT_HANDLER_FREE_BTDM,
-        };
+    /* Configure WiFi AP */
+    wifi_config_t ap_config = {
+        .ap =
+            {
+                .ssid_len = 0,
+                .channel = 1,
+                .authmode = WIFI_AUTH_OPEN,
+                .max_connection = 4,
+            },
+    };
+    snprintf((char *)ap_config.ap.ssid, sizeof(ap_config.ap.ssid), "%s_%02X%02X%02X", DEVICE_NAME, mac[3], mac[4],
+             mac[5]);
 
-        ESP_ERROR_CHECK(wifi_prov_mgr_init(prov_config));
-        ESP_ERROR_CHECK(esp_event_handler_register(WIFI_PROV_EVENT, ESP_EVENT_ANY_ID, &prov_event_handler, NULL));
+    /* Configure WiFi STA (will try to connect if credentials exist in NVS) */
+    wifi_config_t sta_config = {0};
+    esp_wifi_get_config(WIFI_IF_STA, &sta_config);
 
-        /* Generate device name */
-        char device_name[32];
-        snprintf(device_name, sizeof(device_name), "PROV_%s_%02X%02X%02X", DEVICE_NAME, mac[3], mac[4], mac[5]);
+    /* Set WiFi mode to AP+STA */
+    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_APSTA));
+    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &ap_config));
 
-        /* Start provisioning with proof-of-possession */
-        const char *pop = "abcd1234";
-        ESP_LOGI(TAG, "Starting BLE provisioning with PoP: %s", pop);
-        ESP_LOGI(TAG, "Device name: %s", device_name);
+    /* Start WiFi */
+    ESP_ERROR_CHECK(esp_wifi_start());
 
-        ESP_ERROR_CHECK(wifi_prov_mgr_start_provisioning(WIFI_PROV_SECURITY_1, pop, device_name, NULL));
-
-        ESP_LOGI(TAG, "=== WiFi Provisioning Mode ===");
-        ESP_LOGI(TAG, "Use ESP BLE Provisioning app to configure WiFi");
-        ESP_LOGI(TAG, "Device: %s", device_name);
-        ESP_LOGI(TAG, "PoP: %s", pop);
-        ESP_LOGI(TAG, "==============================");
-    } else {
-        ESP_LOGI(TAG, "WiFi credentials found in NVS");
-
-        /* Configure WiFi AP */
-        wifi_config_t ap_config = {
-            .ap =
-                {
-                    .ssid_len = 0,
-                    .channel = 1,
-                    .authmode = WIFI_AUTH_OPEN,
-                    .max_connection = 4,
-                },
-        };
-        snprintf((char *)ap_config.ap.ssid, sizeof(ap_config.ap.ssid), "%s_%02X%02X%02X", DEVICE_NAME, mac[3], mac[4],
-                 mac[5]);
-
-        /* Configure WiFi STA (will try to connect if credentials exist in NVS) */
-        wifi_config_t sta_config = {0};
-        esp_wifi_get_config(WIFI_IF_STA, &sta_config);
-
-        /* Set WiFi mode to AP+STA */
-        ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_APSTA));
-        ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &ap_config));
-
-        /* Start WiFi */
-        ESP_ERROR_CHECK(esp_wifi_start());
-
-        ESP_LOGI(TAG, "=== WiFi Initialized ===");
-        ESP_LOGI(TAG, "AP SSID: %s", ap_config.ap.ssid);
-        ESP_LOGI(TAG, "AP Password: (none)");
-        ESP_LOGI(TAG, "AP IP: 192.168.4.1");
-        ESP_LOGI(TAG, "STA will connect to: %s", sta_config.sta.ssid);
-        ESP_LOGI(TAG, "========================");
-    }
+    ESP_LOGI(TAG, "=== WiFi Initialized ===");
+    ESP_LOGI(TAG, "AP SSID: %s", ap_config.ap.ssid);
+    ESP_LOGI(TAG, "AP Password: (none)");
+    ESP_LOGI(TAG, "AP IP: 192.168.4.1");
+    ESP_LOGI(TAG, "STA will connect to: %s", sta_config.sta.ssid);
+    ESP_LOGI(TAG, "========================");
 }

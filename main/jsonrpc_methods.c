@@ -6,6 +6,7 @@
 #include "esp_system.h"
 #include "esp_wifi.h"
 #include "gpio_control.h"
+#include "ota_manager.h"
 
 #include <string.h>
 
@@ -22,6 +23,7 @@ static cJSON *rpc_method_shelly_list_methods(cJSON *params) {
     cJSON_AddItemToArray(methods, cJSON_CreateString("get_system_info"));
     cJSON_AddItemToArray(methods, cJSON_CreateString("light"));
     cJSON_AddItemToArray(methods, cJSON_CreateString("BLE.GetInfo"));
+    cJSON_AddItemToArray(methods, cJSON_CreateString("OTA.Update"));
 
     cJSON_AddItemToObject(result, "methods", methods);
 
@@ -146,6 +148,30 @@ static cJSON *rpc_method_ble_get_info(cJSON *params) {
     return info;
 }
 
+/* RPC Method: ota_update - triggers OTA firmware update */
+static cJSON *rpc_method_ota_update(cJSON *params) {
+    if (!cJSON_IsObject(params)) {
+        return NULL;
+    }
+
+    cJSON *url_json = cJSON_GetObjectItem(params, "url");
+    if (!cJSON_IsString(url_json) || url_json->valuestring == NULL) {
+        ESP_LOGE(TAG, "OTA.Update: 'url' param required");
+        return NULL;
+    }
+
+    esp_err_t err = ota_manager_start(url_json->valuestring);
+    cJSON *result = cJSON_CreateObject();
+    if (err == ESP_OK) {
+        cJSON_AddStringToObject(result, "status", "updating");
+        cJSON_AddStringToObject(result, "url", url_json->valuestring);
+    } else {
+        cJSON_AddStringToObject(result, "status", "error");
+        cJSON_AddStringToObject(result, "reason", esp_err_to_name(err));
+    }
+    return result;
+}
+
 /* RPC Method Dispatcher */
 
 cJSON *dispatch_method(const char *method, cJSON *params) {
@@ -161,6 +187,8 @@ cJSON *dispatch_method(const char *method, cJSON *params) {
         return rpc_method_light(params);
     } else if (strcmp(method, "BLE.GetInfo") == 0) {
         return rpc_method_ble_get_info(params);
+    } else if (strcmp(method, "OTA.Update") == 0) {
+        return rpc_method_ota_update(params);
     }
 
     return NULL; // Method not found

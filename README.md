@@ -1,6 +1,6 @@
-# ESP32-C6 JSON-RPC 2.0 Server
+# ESP32-C3 JSON-RPC 2.0 Server
 
-A dual-interface JSON-RPC 2.0 server implementation for ESP32-C6, supporting both HTTP and BLE (Bluetooth Low Energy) communication protocols.
+A dual-interface JSON-RPC 2.0 server implementation for ESP32-C3, supporting both HTTP and BLE (Bluetooth Low Energy) communication protocols.
 
 ## Features
 
@@ -14,7 +14,7 @@ A dual-interface JSON-RPC 2.0 server implementation for ESP32-C6, supporting bot
 
 ## Hardware Requirements
 
-- ESP32-C6 development board
+- ESP32-C3 development board
 - USB cable for programming and power
 - (Optional) LED connected to GPIO 4 for light control
 
@@ -42,7 +42,7 @@ On first boot, the device will enter provisioning mode. Use one of these methods
 #### Option A: ESP BLE Provisioning App (Recommended)
 
 1. Download "ESP BLE Provisioning" app ([Android](https://play.google.com/store/apps/details?id=com.espressif.provble) / [iOS](https://apps.apple.com/app/esp-ble-provisioning/id1473590141))
-2. Scan for device: `ShellyDevKit-ESP32C6-JSONRPC_XXXXXX`
+2. Scan for device: `ShellyDevKit-ESP32C3-JSONRPC_XXXXXX`
 3. Enter PoP: `abcd1234`
 4. Select your WiFi and enter password
 5. Done! Credentials are saved automatically
@@ -51,7 +51,7 @@ On first boot, the device will enter provisioning mode. Use one of these methods
 
 ```bash
 pip install esp-idf-provisioning
-esp-prov --transport ble --service_name "ShellyDevKit-ESP32C6-JSONRPC_XXXXXX" \
+esp-prov --transport ble --service_name "ShellyDevKit-ESP32C3-JSONRPC_XXXXXX" \
   --pop "abcd1234" --wifi_ssid "YourWiFi" --wifi_password "YourPassword"
 ```
 
@@ -74,7 +74,7 @@ esp-prov --transport ble --service_name "ShellyDevKit-ESP32C6-JSONRPC_XXXXXX" \
 3. **In device logs, find the device name:**
 
    ```
-   I (XXX) WiFi: Device Name: ShellyDevKit-ESP32C6-JSONRPC_A1B2C3
+   I (XXX) WiFi: Device Name: ShellyDevKit-ESP32C3-JSONRPC_A1B2C3
    ```
 
 4. **Open a new terminal and scan for devices:**
@@ -88,7 +88,7 @@ esp-prov --transport ble --service_name "ShellyDevKit-ESP32C6-JSONRPC_XXXXXX" \
    ```bash
    esp-prov \
      --transport ble \
-     --service_name "ShellyDevKit-ESP32C6-JSONRPC_A1B2C3" \
+     --service_name "ShellyDevKit-ESP32C3-JSONRPC_A1B2C3" \
      --pop "abcd1234" \
      --wifi_ssid "YourWiFiName" \
      --wifi_password "YourWiFiPassword"
@@ -99,7 +99,7 @@ esp-prov --transport ble --service_name "ShellyDevKit-ESP32C6-JSONRPC_XXXXXX" \
    cd $IDF_PATH/tools/esp_prov
    python esp_prov.py \
      --transport ble \
-     --service_name "ShellyDevKit-ESP32C6-JSONRPC_A1B2C3" \
+     --service_name "ShellyDevKit-ESP32C3-JSONRPC_A1B2C3" \
      --pop "abcd1234" \
      --ssid "YourWiFiName" \
      --passphrase "YourWiFiPassword"
@@ -132,7 +132,7 @@ curl -X POST http://192.168.1.100/rpc \
 
 ### BLE Interface
 
-- **Device Name:** `ShellyDevKit-ESP32C6-JSONRPC`
+- **Device Name:** `ShellyDevKit-ESP32C3-JSONRPC`
 - **Service UUID:** `5f6d4f53-5f52-5043-5f53-56435f49445f`
 - **Characteristics:**
   - TX_CTL (Write): `5f6d4f53-5f52-5043-5f74-785f63746c5f`
@@ -208,24 +208,6 @@ Controls the GPIO 4 light (0 = off, 1 = on).
 
 ## Project Structure
 
-```
-esp32c6study/
-├── main/
-│   ├── main.c              # Application entry point
-│   ├── config.h            # Configuration constants
-│   ├── jsonrpc.c/h         # JSON-RPC 2.0 implementation
-│   ├── http_server.c/h     # HTTP server component
-│   ├── wifi_manager.c/h    # WiFi connection management
-│   ├── gpio_control.c/h    # GPIO control functions
-│   └── CMakeLists.txt
-├── CMakeLists.txt          # Project configuration
-├── partitions.csv          # Partition table
-├── WIFI_PROVISIONING.md    # WiFi provisioning guide
-└── README.md
-```
-
-## Configuration
-
 ### WiFi Provisioning
 
 WiFi credentials are configured via BLE provisioning on first boot. The credentials are:
@@ -254,16 +236,6 @@ The light control is configured on GPIO 4. To change this, edit `main/config.h`:
 #define GPIO_LIGHT 4
 ```
 
-### BLE Settings
-
-BLE device name and UUIDs can be customized in `main/config.h`:
-
-```c
-#define BLE_DEVICE_NAME "ShellyDevKit-ESP32C6-JSONRPC"
-#define BLE_MTU_SIZE 512
-#define BLE_RPC_BUFFER_SIZE 2048
-```
-
 ### WiFi Settings
 
 Configure retry attempts and provisioning security in `main/config.h`:
@@ -279,7 +251,7 @@ Configure retry attempts and provisioning security in `main/config.h`:
 
 - Use BLE provisioning app or command line tool to reconfigure credentials
 - Check WiFi signal strength
-- Ensure your router supports 2.4GHz (ESP32-C6 doesn't support 5GHz)
+- Ensure your router supports 2.4GHz (ESP32-C3 doesn't support 5GHz)
 - Verify password is correct in provisioning step
 - Check device logs with `idf.py monitor`
 
@@ -288,7 +260,7 @@ Configure retry attempts and provisioning security in `main/config.h`:
 - Ensure Bluetooth is enabled on your phone/computer
 - Verify the correct Proof of Possession (PoP): `abcd1234`
 - Make sure device is in provisioning mode (first boot or after reset)
-- Check that device name matches: `ShellyDevKit-ESP32C6-JSONRPC_XXXXXX`
+- Check that device name matches: `ShellyDevKit-ESP32C3-JSONRPC_XXXXXX`
 
 ### BLE Not Visible
 
