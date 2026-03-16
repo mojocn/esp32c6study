@@ -3,6 +3,7 @@
 #include "config.h"
 #include "driver/gpio.h"
 #include "esp_log.h"
+#include "esp_random.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "led_strip.h"
@@ -12,6 +13,98 @@
 #define LED_NUM 1
 
 static const char *TAG = "GPIO";
+
+static void gpio_blink_task(void *pvParameters) {
+    const gpio_num_t lights[4] = {GPIO_LIGHT_4, GPIO_LIGHT_5, GPIO_LIGHT_6, GPIO_LIGHT_7};
+
+    while (1) {
+        uint8_t mode = esp_random() % 6;
+
+        switch (mode) {
+            case 0: {
+                // Pure chaos: random bitmask every tick
+                for (int i = 0; i < 12; i++) {
+                    uint8_t mask = esp_random() & 0x0F;
+                    for (int j = 0; j < 4; j++)
+                        gpio_set_level(lights[j], (mask >> j) & 1);
+                    vTaskDelay(pdMS_TO_TICKS(40 + (esp_random() % 120)));
+                }
+                break;
+            }
+            case 1: {
+                // Random-direction chase, 3 laps
+                int dir = esp_random() & 1;
+                for (int rep = 0; rep < 3; rep++) {
+                    for (int i = 0; i < 4; i++) {
+                        int idx = dir ? i : (3 - i);
+                        for (int j = 0; j < 4; j++)
+                            gpio_set_level(lights[j], j == idx ? 1 : 0);
+                        vTaskDelay(pdMS_TO_TICKS(60 + (esp_random() % 100)));
+                    }
+                }
+                break;
+            }
+            case 2: {
+                // Ping-pong bounce
+                for (int rep = 0; rep < 4; rep++) {
+                    for (int i = 0; i < 4; i++) {
+                        for (int j = 0; j < 4; j++)
+                            gpio_set_level(lights[j], j == i ? 1 : 0);
+                        vTaskDelay(pdMS_TO_TICKS(80 + (esp_random() % 60)));
+                    }
+                    for (int i = 2; i >= 1; i--) {
+                        for (int j = 0; j < 4; j++)
+                            gpio_set_level(lights[j], j == i ? 1 : 0);
+                        vTaskDelay(pdMS_TO_TICKS(80 + (esp_random() % 60)));
+                    }
+                }
+                break;
+            }
+            case 3: {
+                // Strobe all: rapid random-speed flashing
+                int count = 6 + (esp_random() % 8);
+                for (int i = 0; i < count; i++) {
+                    uint8_t on = i & 1;
+                    for (int j = 0; j < 4; j++)
+                        gpio_set_level(lights[j], on);
+                    vTaskDelay(pdMS_TO_TICKS(40 + (esp_random() % 80)));
+                }
+                break;
+            }
+            case 4: {
+                // Pair swap with random hold times
+                for (int rep = 0; rep < 6; rep++) {
+                    gpio_set_level(lights[0], 1);
+                    gpio_set_level(lights[1], 0);
+                    gpio_set_level(lights[2], 1);
+                    gpio_set_level(lights[3], 0);
+                    vTaskDelay(pdMS_TO_TICKS(80 + (esp_random() % 140)));
+                    gpio_set_level(lights[0], 0);
+                    gpio_set_level(lights[1], 1);
+                    gpio_set_level(lights[2], 0);
+                    gpio_set_level(lights[3], 1);
+                    vTaskDelay(pdMS_TO_TICKS(80 + (esp_random() % 140)));
+                }
+                break;
+            }
+            case 5: {
+                // Binary counter rip
+                for (int i = 0; i < 16; i++) {
+                    for (int j = 0; j < 4; j++)
+                        gpio_set_level(lights[j], (i >> j) & 1);
+                    vTaskDelay(pdMS_TO_TICKS(60 + (esp_random() % 80)));
+                }
+                break;
+            }
+        }
+
+        // Brief blackout between modes
+        for (int j = 0; j < 4; j++)
+            gpio_set_level(lights[j], 0);
+        ESP_LOGI(TAG, "GPIO crazy cycle done, mode=%d", mode);
+        vTaskDelay(pdMS_TO_TICKS(80 + (esp_random() % 120)));
+    }
+}
 
 void gpio_control_init(void) {
     gpio_config_t io_conf = {
@@ -28,6 +121,8 @@ void gpio_control_init(void) {
     gpio_set_level(GPIO_LIGHT_6, 0);
     gpio_set_level(GPIO_LIGHT_7, 0);
     ESP_LOGI(TAG, "GPIOs %d, %d, %d, %d initialized as output", GPIO_LIGHT_4, GPIO_LIGHT_5, GPIO_LIGHT_6, GPIO_LIGHT_7);
+
+    xTaskCreate(gpio_blink_task, "gpio_blink_task", 2048, NULL, 5, NULL);
 }
 
 esp_err_t gpio_set_light_state(uint8_t state) {
@@ -35,6 +130,9 @@ esp_err_t gpio_set_light_state(uint8_t state) {
         return ESP_ERR_INVALID_ARG;
     }
     gpio_set_level(GPIO_LIGHT_4, state);
+    gpio_set_level(GPIO_LIGHT_5, state);
+    gpio_set_level(GPIO_LIGHT_6, state);
+    gpio_set_level(GPIO_LIGHT_7, state);
     return ESP_OK;
 }
 

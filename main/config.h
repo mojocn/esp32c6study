@@ -5,6 +5,8 @@
 #define WIFI_MAXIMUM_RETRY 10
 #define WIFI_SSID_MAX_LEN 32
 #define WIFI_PASS_MAX_LEN 64
+#define WIFI_DEFAULT_SSID "Shelly Asia"
+#define WIFI_DEFAULT_PASS "Asia20211220"
 
 /* WiFi Provisioning Configuration */
 #define PROV_QR_VERSION "v1"
@@ -24,7 +26,10 @@
 #define WIFI_AP_PASS ""
 
 /* MQTT Configuration */
-#define MQTT_BROKER_URI "mqtt://mqtt.local" /* Change to your broker */
-#define MQTT_HEARTBEAT_INTERVAL_S 10        /* Heartbeat every 10 seconds */
+#define MQTT_BROKER_HOST "mqtt.shellyiot.cn"
+#define MQTT_BROKER_PORT 1883
+#define MQTT_USERNAME "admin"
+#define MQTT_PASSWORD "ZHou20170928"
+#define MQTT_HEARTBEAT_INTERVAL_S 10 /* Heartbeat every 10 seconds */
 
 #endif // CONFIG_H

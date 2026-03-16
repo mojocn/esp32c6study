@@ -10,13 +10,68 @@
 #include "jsonrpc.h"
 #include "mqtt_client.h"
 
+#include <ctype.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 static const char *TAG = "MQTT";
 
 static esp_mqtt_client_handle_t s_client = NULL;
 static bool s_connected = false;
+static char s_broker_host[128];
+
+static const char *normalize_mqtt_host(const char *raw_host, uint16_t *out_port) {
+    if (!raw_host || !out_port) {
+        return NULL;
+    }
+
+    const char *p = raw_host;
+    while (*p && isspace((unsigned char)*p)) {
+        p++;
+    }
+
+    if (strncmp(p, "mqtt://", 7) == 0) {
+        p += 7;
+    } else if (strncmp(p, "tcp://", 6) == 0) {
+        p += 6;
+    }
+
+    while (*p == '/' || *p == ':') {
+        p++;
+    }
+
+    size_t i = 0;
+    while (*p && *p != '/' && !isspace((unsigned char)*p) && i < sizeof(s_broker_host) - 1) {
+        s_broker_host[i++] = *p++;
+    }
+    s_broker_host[i] = '\0';
+
+    if (s_broker_host[0] == '\0') {
+        return NULL;
+    }
+
+    char *port_sep = strrchr(s_broker_host, ':');
+    if (port_sep) {
+        bool numeric_port = true;
+        for (char *q = port_sep + 1; *q; ++q) {
+            if (!isdigit((unsigned char)*q)) {
+                numeric_port = false;
+                break;
+            }
+        }
+
+        if (numeric_port) {
+            long parsed = strtol(port_sep + 1, NULL, 10);
+            if (parsed > 0 && parsed <= 65535) {
+                *out_port = (uint16_t)parsed;
+                *port_sep = '\0';
+            }
+        }
+    }
+
+    return s_broker_host;
+}
 
 /* ------------------------------------------------------------------ */
 /* Topic helpers                                                        */
@@ -116,7 +171,14 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
         }
 
         case MQTT_EVENT_ERROR:
-            ESP_LOGE(TAG, "MQTT error");
+            if (event->error_handle) {
+                ESP_LOGE(TAG, "MQTT error: type=%d tls_last=0x%x tls_stack=0x%x transport_sock=%d cert_flags=0x%x",
+                         event->error_handle->error_type, event->error_handle->esp_tls_last_esp_err,
+                         event->error_handle->esp_tls_stack_err, event->error_handle->esp_transport_sock_errno,
+                         event->error_handle->esp_tls_cert_verify_flags);
+            } else {
+                ESP_LOGE(TAG, "MQTT error (no details)");
+            }
             break;
 
         default:
@@ -147,9 +209,25 @@ esp_err_t mqtt_manager_start(void) {
         return err;
     }
 
+    uint16_t broker_port = MQTT_BROKER_PORT;
+    const char *broker_host = normalize_mqtt_host(MQTT_BROKER_HOST, &broker_port);
+    if (!broker_host) {
+        ESP_LOGE(TAG, "Invalid MQTT broker host: '%s'", MQTT_BROKER_HOST);
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    if (strcmp(broker_host, MQTT_BROKER_HOST) != 0 || broker_port != MQTT_BROKER_PORT) {
+        ESP_LOGW(TAG, "Normalized MQTT broker from '%s:%d' to '%s:%u'", MQTT_BROKER_HOST, MQTT_BROKER_PORT, broker_host,
+                 broker_port);
+    }
+
     /* Configure and start MQTT client */
     esp_mqtt_client_config_t mqtt_cfg = {
-        .broker.address.uri = MQTT_BROKER_URI,
+        .broker.address.hostname = broker_host,
+        .broker.address.transport = MQTT_TRANSPORT_OVER_TCP,
+        .broker.address.port = broker_port,
+        .credentials.username = MQTT_USERNAME,
+        .credentials.authentication.password = MQTT_PASSWORD,
     };
 
     s_client = esp_mqtt_client_init(&mqtt_cfg);
@@ -166,7 +244,7 @@ esp_err_t mqtt_manager_start(void) {
         return err;
     }
 
-    ESP_LOGI(TAG, "MQTT client started, broker=%s", MQTT_BROKER_URI);
+    ESP_LOGI(TAG, "MQTT client started, broker=%s:%u", broker_host, broker_port);
     return ESP_OK;
 }
 

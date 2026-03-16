@@ -35,7 +35,8 @@ void app_main(void) {
     /* Start MQTT client (runs after WiFi is up) */
     ESP_LOGI(TAG, "Starting MQTT client...");
     if (mqtt_manager_start() == ESP_OK) {
-        ESP_LOGI(TAG, "MQTT client started (broker=%s, heartbeat=%ds)", MQTT_BROKER_URI, MQTT_HEARTBEAT_INTERVAL_S);
+        ESP_LOGI(TAG, "MQTT client started (broker=%s:%d, heartbeat=%ds)", MQTT_BROKER_HOST, MQTT_BROKER_PORT,
+                 MQTT_HEARTBEAT_INTERVAL_S);
     } else {
         ESP_LOGE(TAG, "Failed to start MQTT client");
     }

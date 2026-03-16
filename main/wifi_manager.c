@@ -94,17 +94,6 @@ void initialise_wifi(void) {
     uint8_t mac[6];
     ESP_ERROR_CHECK(esp_wifi_get_mac(WIFI_IF_STA, mac));
 
-    /* Check if WiFi credentials are provisioned */
-    bool provisioned = false;
-    wifi_config_t sta_check_config = {0};
-    if (esp_wifi_get_config(WIFI_IF_STA, &sta_check_config) == ESP_OK) {
-        if (strlen((char *)sta_check_config.sta.ssid) > 0) {
-            provisioned = true;
-        }
-    }
-
-    ESP_LOGI(TAG, "WiFi credentials found in NVS");
-
     /* Configure WiFi AP */
     wifi_config_t ap_config = {
         .ap =
@@ -118,13 +107,22 @@ void initialise_wifi(void) {
     snprintf((char *)ap_config.ap.ssid, sizeof(ap_config.ap.ssid), "%s_%02X%02X%02X", DEVICE_NAME, mac[3], mac[4],
              mac[5]);
 
-    /* Configure WiFi STA (will try to connect if credentials exist in NVS) */
+    /* Configure WiFi STA: use NVS credentials if saved, otherwise fall back to defaults */
     wifi_config_t sta_config = {0};
     esp_wifi_get_config(WIFI_IF_STA, &sta_config);
+    if (strlen((char *)sta_config.sta.ssid) == 0) {
+        strncpy((char *)sta_config.sta.ssid, WIFI_DEFAULT_SSID, sizeof(sta_config.sta.ssid) - 1);
+        strncpy((char *)sta_config.sta.password, WIFI_DEFAULT_PASS, sizeof(sta_config.sta.password) - 1);
+        sta_config.sta.threshold.authmode = WIFI_AUTH_WPA2_PSK;
+        ESP_LOGI(TAG, "No NVS credentials found, using default WiFi: %s", WIFI_DEFAULT_SSID);
+    } else {
+        ESP_LOGI(TAG, "WiFi credentials found in NVS: %s", sta_config.sta.ssid);
+    }
 
     /* Set WiFi mode to AP+STA */
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_APSTA));
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &ap_config));
+    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &sta_config));
 
     /* Start WiFi */
     ESP_ERROR_CHECK(esp_wifi_start());

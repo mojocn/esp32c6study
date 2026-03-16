@@ -18,7 +18,7 @@ static cJSON *rpc_method_shelly_list_methods(cJSON *params) {
     cJSON *methods = cJSON_CreateArray();
 
     cJSON_AddItemToArray(methods, cJSON_CreateString("Shelly.ListMethods"));
-    cJSON_AddItemToArray(methods, cJSON_CreateString("Wifi.set"));
+    cJSON_AddItemToArray(methods, cJSON_CreateString("Wifi.Set"));
     cJSON_AddItemToArray(methods, cJSON_CreateString("subtract"));
     cJSON_AddItemToArray(methods, cJSON_CreateString("get_system_info"));
     cJSON_AddItemToArray(methods, cJSON_CreateString("light"));
@@ -177,7 +177,7 @@ static cJSON *rpc_method_ota_update(cJSON *params) {
 cJSON *dispatch_method(const char *method, cJSON *params) {
     if (strcmp(method, "Shelly.ListMethods") == 0) {
         return rpc_method_shelly_list_methods(params);
-    } else if (strcmp(method, "Wifi.set") == 0) {
+    } else if (strcmp(method, "Wifi.Set") == 0) {
         return rpc_method_wifi_set(params);
     } else if (strcmp(method, "subtract") == 0) {
         return rpc_method_subtract(params);

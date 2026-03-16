@@ -6,7 +6,7 @@
 /**
  * @brief Initialize and start the MQTT client.
  *
- * Connects to the broker defined by MQTT_BROKER_URI in config.h.
+ * Connects to the broker defined by MQTT_BROKER_HOST and MQTT_BROKER_PORT in config.h.
  * Subscribes to <DEVICE_NAME>/rpc for JSON-RPC requests.
  * Publishes a heartbeat to <DEVICE_NAME>/status every MQTT_HEARTBEAT_INTERVAL_S seconds.
  *
