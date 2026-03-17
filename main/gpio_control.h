@@ -9,6 +9,7 @@
 #define GPIO_LIGHT_5 5
 #define GPIO_LIGHT_6 6
 #define GPIO_LIGHT_7 7
+#define GPIO_LIGHT_9 9
 
 /**
  * @brief Initialize GPIO for light control
