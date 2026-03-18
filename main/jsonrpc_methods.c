@@ -1,6 +1,7 @@
 #include "jsonrpc_methods.h"
 
 #include "config.h"
+#include "dht11.h"
 #include "esp_chip_info.h"
 #include "esp_log.h"
 #include "esp_system.h"
@@ -24,6 +25,7 @@ static cJSON *rpc_method_shelly_list_methods(cJSON *params) {
     cJSON_AddItemToArray(methods, cJSON_CreateString("light"));
     cJSON_AddItemToArray(methods, cJSON_CreateString("BLE.GetInfo"));
     cJSON_AddItemToArray(methods, cJSON_CreateString("OTA.Update"));
+    cJSON_AddItemToArray(methods, cJSON_CreateString("DHT11.GetTemperatureAndHumidity"));
 
     cJSON_AddItemToObject(result, "methods", methods);
 
@@ -172,6 +174,23 @@ static cJSON *rpc_method_ota_update(cJSON *params) {
     return result;
 }
 
+/* RPC Method: DHT11.GetTemperatureAndHumidity - returns temperature and humidity */
+static cJSON *rpc_method_dht11_get(cJSON *params) {
+    dht11_reading_t reading;
+    esp_err_t err = dht11_get_last_reading(&reading);
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "DHT11: no reading available yet");
+        return NULL;
+    }
+
+    cJSON *result = cJSON_CreateObject();
+    cJSON_AddNumberToObject(result, "temperature", reading.temperature);
+    cJSON_AddNumberToObject(result, "humidity", reading.humidity);
+    cJSON_AddStringToObject(result, "unit_temp", "C");
+    cJSON_AddStringToObject(result, "unit_humidity", "%");
+    return result;
+}
+
 /* RPC Method Dispatcher */
 
 cJSON *dispatch_method(const char *method, cJSON *params) {
@@ -189,6 +208,8 @@ cJSON *dispatch_method(const char *method, cJSON *params) {
         return rpc_method_ble_get_info(params);
     } else if (strcmp(method, "OTA.Update") == 0) {
         return rpc_method_ota_update(params);
+    } else if (strcmp(method, "DHT11.GetTemperatureAndHumidity") == 0) {
+        return rpc_method_dht11_get(params);
     }
 
     return NULL; // Method not found

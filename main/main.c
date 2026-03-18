@@ -1,12 +1,15 @@
 /* JSON-RPC 2.0 HTTP/BLE/MQTT Server for ESP32-C3 */
 
+#include "buzzer.h"
 #include "config.h"
+#include "dht11.h"
 #include "esp_log.h"
 #include "esp_netif.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "gpio_control.h"
 #include "http_server.h"
+#include "max7219.h"
 #include "mqtt_manager.h"
 #include "nvs_flash.h"
 #include "store.h"
@@ -25,6 +28,16 @@ void app_main(void) {
 
     /* Initialize RGB LED */
     rgb_led_init();
+
+    /* Initialize DHT11 temperature & humidity sensor */
+    dht11_init();
+
+    /* Initialize MAX7219 8x8 LED matrix (with demo) */
+    max7219_init();
+
+    /* Initialize buzzer and run demo (4x on/off every 5s) */
+    buzzer_init();
+    buzzer_demo();
 
     /* Initialize WiFi (must be before BLE to allow BLE provisioning if needed) */
     initialise_wifi();

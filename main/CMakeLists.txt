@@ -1,4 +1,7 @@
 idf_component_register(SRCS  "store.c" "main.c"
+                            "dht11.c"
+                            "max7219.c"
+                            "buzzer.c"
                             "gpio_control.c"
                             "jsonrpc.c"
                             "jsonrpc_methods.c"

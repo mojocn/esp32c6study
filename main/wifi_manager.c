@@ -104,8 +104,11 @@ void initialise_wifi(void) {
                 .max_connection = 4,
             },
     };
-    snprintf((char *)ap_config.ap.ssid, sizeof(ap_config.ap.ssid), "%s_%02X%02X%02X", DEVICE_NAME, mac[3], mac[4],
-             mac[5]);
+
+    snprintf((char *)ap_config.ap.ssid, sizeof(ap_config.ap.ssid), "eric.zhou-%02X%02X%02X%02X%02X%02X", mac[0], mac[1],
+             mac[2], mac[3], mac[4], mac[5]);
+    ESP_LOGI(TAG, "Configuring WiFi AP with SSID: " MACSTR, MAC2STR(mac));
+    ESP_LOGI(TAG, "Configuring WiFi AP with SSID: %s", ap_config.ap.ssid);
 
     /* Configure WiFi STA: use NVS credentials if saved, otherwise fall back to defaults */
     wifi_config_t sta_config = {0};
