@@ -18,7 +18,7 @@ static cJSON *rpc_method_shelly_list_methods(cJSON *params) {
     cJSON *result = cJSON_CreateObject();
     cJSON *methods = cJSON_CreateArray();
 
-    cJSON_AddItemToArray(methods, cJSON_CreateString("Shelly.ListMethods"));
+    cJSON_AddItemToArray(methods, cJSON_CreateString("Method.List"));
     cJSON_AddItemToArray(methods, cJSON_CreateString("Wifi.Set"));
     cJSON_AddItemToArray(methods, cJSON_CreateString("subtract"));
     cJSON_AddItemToArray(methods, cJSON_CreateString("get_system_info"));
@@ -194,7 +194,7 @@ static cJSON *rpc_method_dht11_get(cJSON *params) {
 /* RPC Method Dispatcher */
 
 cJSON *dispatch_method(const char *method, cJSON *params) {
-    if (strcmp(method, "Shelly.ListMethods") == 0) {
+    if (strcmp(method, "Method.List") == 0) {
         return rpc_method_shelly_list_methods(params);
     } else if (strcmp(method, "Wifi.Set") == 0) {
         return rpc_method_wifi_set(params);

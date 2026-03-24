@@ -6,4 +6,4 @@ set(EXTRA_COMPONENT_DIRS )
 set(PARTITION_CSV_PATH "${CMAKE_SOURCE_DIR}/partitions.csv")
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
-project(esp32c6study)
+project(esp32c3study)

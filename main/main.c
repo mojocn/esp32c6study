@@ -25,20 +25,20 @@ void app_main(void) {
     init_nvs();
 
     /* Initialize GPIO */
-    gpio_control_init();
+    // gpio_control_init();
 
     /* Initialize RGB LED */
-    rgb_led_init();
+    // rgb_led_init();
 
     /* Initialize DHT11 temperature & humidity sensor */
-    dht11_init();
+    // dht11_init();
 
     /* Initialize MAX7219 8x8 LED matrix (with demo) */
     max7219_init();
 
     /* Initialize buzzer and run demo (4x on/off every 5s) */
-    buzzer_init();
-    buzzer_demo();
+    // buzzer_init();
+    // buzzer_demo();
 
     /* Initialize WiFi (must be before BLE to allow BLE provisioning if needed) */
     initialise_wifi();

@@ -30,7 +30,7 @@ A dual-interface JSON-RPC 2.0 server implementation for ESP32-C3, supporting bot
 
 ```bash
 git clone <repository-url>
-cd esp32c6study
+cd esp32c3study
 ```
 
 ### 2. Configure WiFi via BLE Provisioning
