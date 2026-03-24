@@ -21,11 +21,11 @@ static cJSON *rpc_method_shelly_list_methods(cJSON *params) {
     cJSON_AddItemToArray(methods, cJSON_CreateString("Method.List"));
     cJSON_AddItemToArray(methods, cJSON_CreateString("Wifi.Set"));
     cJSON_AddItemToArray(methods, cJSON_CreateString("subtract"));
-    cJSON_AddItemToArray(methods, cJSON_CreateString("get_system_info"));
+    cJSON_AddItemToArray(methods, cJSON_CreateString("Get.SystemInfo"));
     cJSON_AddItemToArray(methods, cJSON_CreateString("light"));
     cJSON_AddItemToArray(methods, cJSON_CreateString("BLE.GetInfo"));
     cJSON_AddItemToArray(methods, cJSON_CreateString("OTA.Update"));
-    cJSON_AddItemToArray(methods, cJSON_CreateString("DHT11.GetTemperatureAndHumidity"));
+    cJSON_AddItemToArray(methods, cJSON_CreateString("Get.TemperatureHumidity"));
 
     cJSON_AddItemToObject(result, "methods", methods);
 
@@ -37,7 +37,10 @@ static cJSON *rpc_method_wifi_set(cJSON *params) {
     // Validate params - expecting an object with "ssid" and optional "password"
     if (!cJSON_IsObject(params)) {
         ESP_LOGE(TAG, "wifi_set: params must be an object");
-        return NULL;
+
+        // return jsonrpc_error_response(1, 1, JSONRPC_INVALID_PARAMS, "Invalid params: expected an object with 'ssid'
+        // and optional 'password'"); --- IGNORE ---
+        return
     }
 
     cJSON *ssid_json = cJSON_GetObjectItem(params, "ssid");
@@ -98,7 +101,7 @@ static cJSON *rpc_method_subtract(cJSON *params) {
     return cJSON_CreateNumber(result);
 }
 
-/* RPC Method: get_system_info - returns ESP32 system information */
+/* RPC Method: Get.SystemInfo - returns ESP32 system information */
 static cJSON *rpc_method_get_system_info(cJSON *params) {
     cJSON *info = cJSON_CreateObject();
 
@@ -174,12 +177,18 @@ static cJSON *rpc_method_ota_update(cJSON *params) {
     return result;
 }
 
-/* RPC Method: DHT11.GetTemperatureAndHumidity - returns temperature and humidity */
+/* RPC Method: Get.TemperatureHumidity - returns temperature and humidity */
 static cJSON *rpc_method_dht11_get(cJSON *params) {
     dht11_reading_t reading;
     esp_err_t err = dht11_get_last_reading(&reading);
-    if (err != ESP_OK) {
-        ESP_LOGW(TAG, "DHT11: no reading available yet");
+    if (err == ESP_ERR_NOT_FOUND) {
+        ESP_LOGD(TAG, "DHT11: no reading available yet");
+        cJSON *result = cJSON_CreateObject();
+        cJSON_AddStringToObject(result, "status", "no_data");
+        cJSON_AddStringToObject(result, "message", "DHT11 reading not ready yet");
+        return result;
+    } else if (err != ESP_OK) {
+        ESP_LOGW(TAG, "DHT11 read status error: %s", esp_err_to_name(err));
         return NULL;
     }
 
@@ -194,21 +203,23 @@ static cJSON *rpc_method_dht11_get(cJSON *params) {
 /* RPC Method Dispatcher */
 
 cJSON *dispatch_method(const char *method, cJSON *params) {
-    if (strcmp(method, "Method.List") == 0) {
+    // trim space for method name
+
+    if (strcasecmp(method, "Method.List") == 0) {
         return rpc_method_shelly_list_methods(params);
-    } else if (strcmp(method, "Wifi.Set") == 0) {
+    } else if (strcasecmp(method, "Wifi.Set") == 0) {
         return rpc_method_wifi_set(params);
-    } else if (strcmp(method, "subtract") == 0) {
+    } else if (strcasecmp(method, "subtract") == 0) {
         return rpc_method_subtract(params);
-    } else if (strcmp(method, "get_system_info") == 0) {
+    } else if (strcasecmp(method, "Get.SystemInfo") == 0) {
         return rpc_method_get_system_info(params);
-    } else if (strcmp(method, "light") == 0) {
+    } else if (strcasecmp(method, "light") == 0) {
         return rpc_method_light(params);
-    } else if (strcmp(method, "BLE.GetInfo") == 0) {
+    } else if (strcasecmp(method, "BLE.GetInfo") == 0) {
         return rpc_method_ble_get_info(params);
-    } else if (strcmp(method, "OTA.Update") == 0) {
+    } else if (strcasecmp(method, "OTA.Update") == 0) {
         return rpc_method_ota_update(params);
-    } else if (strcmp(method, "DHT11.GetTemperatureAndHumidity") == 0) {
+    } else if (strcasecmp(method, "Get.TemperatureHumidity") == 0) {
         return rpc_method_dht11_get(params);
     }
 

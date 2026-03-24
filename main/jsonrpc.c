@@ -76,27 +76,16 @@ char *jsonrpc_process_request(const char *request_str) {
         return response_str;
     }
 
-    /* If it's a notification (no id), we still process but don't respond */
-    bool is_notification = !id_exists;
-
     /* Dispatch method */
     cJSON *result = dispatch_method(method->valuestring, params);
 
     if (result == NULL) {
         /* Method not found or invalid parameters */
-        if (!is_notification) {
-
-            response_str = jsonrpc_error_response(id_exists, id_value, JSONRPC_INVALID_PARAMS, "Invalid params");
-        }
+        response_str = jsonrpc_error_response(id_exists, id_value, JSONRPC_INTERNAL_ERROR,
+                                              "Internal result is null (method not found or invalid params)");
     } else {
-        /* Success */
-        if (!is_notification) {
-            response_str = jsonrpc_success_response(id_value, result);
-        } else {
-            cJSON_Delete(result);
-        }
+        response_str = jsonrpc_success_response(id_value, result);
     }
-
     cJSON_Delete(json);
     return response_str;
 }

@@ -180,14 +180,14 @@ Subtracts two numbers.
 }
 ```
 
-### `get_system_info`
+### `Get.SystemInfo`
 
 Retrieves ESP32 system information.
 
 ```json
 {
   "jsonrpc": "2.0",
-  "method": "get_system_info",
+  "method": "Get.SystemInfo",
   "params": [],
   "id": 1
 }

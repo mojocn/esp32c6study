@@ -31,7 +31,7 @@ void app_main(void) {
     // rgb_led_init();
 
     /* Initialize DHT11 temperature & humidity sensor */
-    // dht11_init();
+    dht11_init();
 
     /* Initialize MAX7219 8x8 LED matrix (with demo) */
     max7219_init();
