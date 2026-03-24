@@ -1,5 +1,6 @@
 /* JSON-RPC 2.0 HTTP/BLE/MQTT Server for ESP32-C3 */
 
+#include "ble_gatt_server.h"
 #include "buzzer.h"
 #include "config.h"
 #include "dht11.h"
@@ -52,6 +53,14 @@ void app_main(void) {
                  MQTT_HEARTBEAT_INTERVAL_S);
     } else {
         ESP_LOGE(TAG, "Failed to start MQTT client");
+    }
+
+    /* Start BLE GATT server (JSON-RPC over NUS-compatible service) */
+    ESP_LOGI(TAG, "Starting BLE GATT server...");
+    if (ble_gatt_server_init() == ESP_OK) {
+        ESP_LOGI(TAG, "BLE GATT server started (device name: %s)", DEVICE_NAME);
+    } else {
+        ESP_LOGE(TAG, "Failed to start BLE GATT server");
     }
 
     ESP_LOGI(TAG, "=================================================");
