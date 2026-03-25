@@ -1,4 +1,4 @@
-file(GLOB MAIN_SRCS "*.c" "*.cpp")
+file(GLOB MAIN_SRCS "config.c" "*.c" "*.cpp")
 
 idf_component_register(
     SRCS ${MAIN_SRCS}

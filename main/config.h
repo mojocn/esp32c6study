@@ -1,23 +1,10 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
-/* WiFi Configuration */
-#define WIFI_MAXIMUM_RETRY 10
-#define WIFI_SSID_MAX_LEN 32
-#define WIFI_PASS_MAX_LEN 64
-#define WIFI_DEFAULT_SSID "Shelly Asia"
-#define WIFI_DEFAULT_PASS "Asia20211220"
+#include "cJSON.h"
+#include <stdbool.h>
 
-/* WiFi Provisioning Configuration */
-#define PROV_QR_VERSION "v1"
-#define PROV_TRANSPORT_BLE "ble"
-#define PROV_TRANSPORT_SOFTAP "softap"
-#define PROV_SECURITY_VERSION 2 /* 0: No security, 1: WPA2, 2: SRP6a */
-#define PROV_MGR_MAX_RETRY_CNT 5
-
-/* WiFi AP SSID Configuration */
-#define DEVICE_NAME "ShellyEric"
-#define WIFI_AP_PASS ""
+#define WIFI_MAXIMUM_RETRY 5
 
 /* MQTT Configuration */
 #define MQTT_BROKER_HOST "mqtt.shellyiot.cn"
@@ -25,5 +12,29 @@
 #define MQTT_USERNAME "admin"
 #define MQTT_PASSWORD "ZHou20170928"
 #define MQTT_HEARTBEAT_INTERVAL_S 10 /* Heartbeat every 10 seconds */
+
+char *device_name();
+
+typedef struct {
+  char *device_name;
+
+  char *wifi_ap_ssid;
+  char *wifi_ap_password;
+  bool wifi_ap_enabled;
+
+  char *wifi_sta_ssid;
+  char *wifi_sta_password;
+  bool wifi_sta_enabled;
+
+} AppConfig;
+
+void app_config_free(AppConfig *config);
+
+AppConfig *app_config_from_json(cJSON *json_str);
+cJSON *app_config_to_json(const AppConfig *config);
+
+AppConfig *config_init(void);
+AppConfig *config_get();
+void config_set(const AppConfig *config);
 
 #endif // CONFIG_H

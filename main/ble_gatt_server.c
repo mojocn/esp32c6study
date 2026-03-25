@@ -177,7 +177,7 @@ static void ble_app_advertise(void) {
     fields.tx_pwr_lvl_is_present = 1;
     fields.tx_pwr_lvl = BLE_HS_ADV_TX_PWR_LVL_AUTO;
 
-    const char *name = DEVICE_NAME;
+    const char *name = device_name();
     fields.name = (const uint8_t *)name;
     fields.name_len = (uint8_t)strlen(name);
     fields.name_is_complete = 1;
@@ -234,7 +234,7 @@ esp_err_t ble_gatt_server_init(void) {
     /* Standard GAP and GATT services */
     ble_svc_gap_init();
     ble_svc_gatt_init();
-    ble_svc_gap_device_name_set(DEVICE_NAME);
+    ble_svc_gap_device_name_set(device_name());
 
     /* Register application GATT service */
     int rc = ble_gatts_count_cfg(nus_svc_def);
