@@ -1,4 +1,4 @@
-#include "rpc_methods.h"
+#include "rpc_m.h"
 
 #include "config.h"
 #include "dht11.h"
@@ -10,7 +10,9 @@
 #include "ota_manager.h"
 #include "rpc_json.h"
 
+#include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 
 static const char *TAG = "rpc_methods";
 
@@ -136,7 +138,7 @@ static JsonRpcResponse *rpc_method_ota_update(cJSON *params) {
     return jsonrpc_response_create(result, NULL, 0);
 }
 
-/* RPC Method: Get.TemperatureHumidity - returns temperature and humidity */
+/* RPC Method: TemperatureHumidity.Get - returns temperature and humidity */
 static JsonRpcResponse *rpc_method_dht11_get(cJSON *params) {
     dht11_reading_t reading;
     esp_err_t err = dht11_get_last_reading(&reading);
@@ -157,8 +159,6 @@ static JsonRpcResponse *rpc_method_dht11_get(cJSON *params) {
     return jsonrpc_response_create(result, NULL, 0);
 }
 
-typedef JsonRpcResponse *(*rpc_handler_t)(cJSON *params);
-
 /* RPC Method declarations */
 static JsonRpcResponse *rpc_method_shelly_list_methods(cJSON *params);
 
@@ -167,22 +167,82 @@ typedef struct {
     rpc_handler_t handler;
 } RpcMethodEntry;
 
-static RpcMethodEntry rpc_methods[] = {
-
+static const RpcMethodEntry rpc_methods_builtin[] = {
     {"Method.List", rpc_method_shelly_list_methods},
     {"Wifi.Set", rpc_method_wifi_set},
-    {"BLE.GetInfo", rpc_method_ble_get_info},
+    {"BLE.Info", rpc_method_ble_get_info},
     {"OTA.Update", rpc_method_ota_update},
-    {"Get.TemperatureHumidity", rpc_method_dht11_get},
-    {"Get.SystemInfo", rpc_method_get_system_info},
+    {"TemperatureHumidity.Get", rpc_method_dht11_get},
+    {"System.Info", rpc_method_get_system_info},
     {"Light.Set", rpc_method_light},
-
 };
 
-static int rpc_method_count = sizeof(rpc_methods) / sizeof(rpc_methods[0]);
+static RpcMethodEntry *rpc_methods = NULL;
+static int rpc_method_count = 0;
+static int rpc_method_capacity = 0;
+
+static void rpc_ensure_initialized(void) {
+    if (rpc_methods != NULL) {
+        return;
+    }
+
+    rpc_method_count = sizeof(rpc_methods_builtin) / sizeof(rpc_methods_builtin[0]);
+    rpc_method_capacity = rpc_method_count + 4;
+    rpc_methods = malloc(rpc_method_capacity * sizeof(RpcMethodEntry));
+    if (!rpc_methods) {
+        ESP_LOGE(TAG, "Failed to allocate RPC methods table");
+        rpc_method_count = 0;
+        rpc_method_capacity = 0;
+        return;
+    }
+
+    for (int i = 0; i < rpc_method_count; i++) {
+        rpc_methods[i].method = strdup(rpc_methods_builtin[i].method);
+        rpc_methods[i].handler = rpc_methods_builtin[i].handler;
+    }
+}
+
+void register_method(char *method_name, rpc_handler_t handler) {
+    if (!method_name || !handler) {
+        ESP_LOGW(TAG, "register_method: invalid args\n");
+        return;
+    }
+
+    rpc_ensure_initialized();
+    if (!rpc_methods) {
+        return;
+    }
+
+    for (int i = 0; i < rpc_method_count; i++) {
+        if (strcasecmp(method_name, rpc_methods[i].method) == 0) {
+            ESP_LOGW(TAG, "register_method: method already exists: %s", method_name);
+            return;
+        }
+    }
+
+    if (rpc_method_count >= rpc_method_capacity) {
+        int new_capacity = rpc_method_capacity + 4;
+        RpcMethodEntry *new_array = realloc(rpc_methods, new_capacity * sizeof(RpcMethodEntry));
+        if (!new_array) {
+            ESP_LOGE(TAG, "register_method: realloc failed");
+            return;
+        }
+        rpc_methods = new_array;
+        rpc_method_capacity = new_capacity;
+    }
+
+    rpc_methods[rpc_method_count].method = strdup(method_name);
+    rpc_methods[rpc_method_count].handler = handler;
+    rpc_method_count++;
+}
 
 static rpc_handler_t find_rpc_handler(const char *method) {
-    for (size_t i = 0; i < rpc_method_count; i++) {
+    rpc_ensure_initialized();
+    if (!rpc_methods || !method) {
+        return NULL;
+    }
+
+    for (int i = 0; i < rpc_method_count; i++) {
         if (strcasecmp(method, rpc_methods[i].method) == 0) {
             return rpc_methods[i].handler;
         }
@@ -192,8 +252,9 @@ static rpc_handler_t find_rpc_handler(const char *method) {
 
 /* RPC Method: shelly_list_methods - lists available RPC methods */
 static JsonRpcResponse *rpc_method_shelly_list_methods(cJSON *params) {
+    rpc_ensure_initialized();
     cJSON *methods = cJSON_CreateArray();
-    for (size_t i = 0; i < rpc_method_count; i++) {
+    for (int i = 0; i < rpc_method_count; i++) {
         cJSON_AddItemToArray(methods, cJSON_CreateString(rpc_methods[i].method));
     }
     return jsonrpc_response_create(methods, NULL, 0);
@@ -217,7 +278,7 @@ char *rpc_process_request(const char *request_str) {
             response = jsonrpc_response_create(NULL, "Method not found", JSONRPC_METHOD_NOT_FOUND);
         }
     }
-    response->id = cJSON_Duplicate(request->id, true); // Ensure response ID matches request ID
+    response->id = cJSON_Duplicate(request->id, true);
     char *response_str = jsonrpc_response_to_json(response);
     jsonrpc_response_free(response);
     jsonrpc_request_free(request);

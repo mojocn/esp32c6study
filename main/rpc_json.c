@@ -5,7 +5,7 @@
 #include "esp_log.h"
 #include "esp_system.h"
 #include "gpio_control.h"
-#include "rpc_methods.h"
+#include "rpc_m.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -32,7 +32,6 @@ JsonRpcRequest *jsonrpc_parse_request(const char *json) {
     req->method = strdup(method_item->valuestring);
 
     req->id = cJSON_Duplicate(cJSON_GetObjectItem(root, "id"), true);
-
     req->params = cJSON_Duplicate(cJSON_GetObjectItem(root, "params"), true);
 
     cJSON_Delete(root);
@@ -75,6 +74,7 @@ JsonRpcResponse *jsonrpc_response_create(cJSON *result, char *err_msg, int err_c
     JsonRpcResponse *resp = malloc(sizeof(JsonRpcResponse));
     strcpy(resp->jsonrpc, "2.0");
     resp->result = result;
+    resp->id = NULL;
     if (err_msg) {
         resp->error = malloc(sizeof(JsonRpcError));
         resp->error->code = err_code;

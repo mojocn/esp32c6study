@@ -8,7 +8,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "mqtt_client.h"
-#include "rpc_methods.h"
+#include "rpc_m.h"
 
 #include <ctype.h>
 #include <stdio.h>

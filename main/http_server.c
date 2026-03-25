@@ -2,7 +2,7 @@
 
 #include "config.h"
 #include "esp_log.h"
-#include "rpc_methods.h"
+#include "rpc_m.h"
 
 #include <stdlib.h>
 
