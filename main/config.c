@@ -95,14 +95,14 @@ static AppConfig *app_config_default() {
   cfg->wifi_ap_password = NULL;
   cfg->wifi_ap_enabled = true;
 
-  cfg->wifi_sta_ssid = NULL;
-  cfg->wifi_sta_password = NULL;
-  cfg->wifi_sta_enabled = false;
+  cfg->wifi_sta_ssid = "Shelly Asia";
+  cfg->wifi_sta_password = "Asia20211220";
+  cfg->wifi_sta_enabled = true;
 
   return cfg;
 }
 
-AppConfig *app_config_from_json(cJSON *json) {
+AppConfig *config_from_json(cJSON *json) {
   if (!json || !cJSON_IsObject(json)) {
     return NULL;
   }
@@ -150,7 +150,7 @@ AppConfig *app_config_from_json(cJSON *json) {
   return cfg;
 }
 
-cJSON *app_config_to_json(const AppConfig *config) {
+cJSON *config_to_json(const AppConfig *config) {
   if (!config) {
     return NULL;
   }
@@ -171,7 +171,7 @@ cJSON *app_config_to_json(const AppConfig *config) {
   return json;
 }
 
-void app_config_free(AppConfig *config) {
+void config_free(AppConfig *config) {
   if (!config) {
     return;
   }
@@ -195,25 +195,25 @@ AppConfig *config_get() {
     free(json_str);
     return NULL;
   }
-  AppConfig *cfg = app_config_from_json(json);
+  AppConfig *cfg = config_from_json(json);
   cJSON_Delete(json);
   free(json_str);
   return cfg;
 }
 
-void config_set(const AppConfig *config) {
+void config_save(const AppConfig *config) {
   if (!config) {
     return;
   }
 
-  cJSON *json = app_config_to_json(config);
+  cJSON *json = config_to_json(config);
   char *json_str = cJSON_PrintUnformatted(json);
   cJSON_Delete(json);
   kv_str_set(KEY_CONFIG, json_str);
   free(json_str);
 }
 
-AppConfig *config_init(void) {
+AppConfig *config_init() {
   esp_err_t err = nvs_flash_init();
   if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
     err = nvs_flash_erase();
@@ -230,26 +230,9 @@ AppConfig *config_init(void) {
   }
 
   AppConfig *cfg = config_get();
-  if (cfg) {
-    return cfg;
-  }
-
-  ESP_LOGW("CONFIG", "No config found in NVS, writing defaults");
-
-  AppConfig *default_cfg = app_config_default();
-  if (!default_cfg) {
-    ESP_LOGE("CONFIG", "Failed to allocate default config");
-    return NULL;
-  }
-
-  config_set(default_cfg);
-
-  cfg = config_get();
   if (!cfg) {
-    ESP_LOGW("CONFIG", "Could not read default config from NVS, using in-memory defaults");
-    return default_cfg;
+    cfg = app_config_default();
+    config_save(cfg);
   }
-
-  app_config_free(default_cfg);
   return cfg;
 }

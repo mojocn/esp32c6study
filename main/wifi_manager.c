@@ -1,289 +1,180 @@
-
-
+#include "wifi_manager.h"
 #include "cJSON.h"
-#include "config.h"
 #include "esp_event.h"
 #include "esp_log.h"
-#include "esp_mac.h"
 #include "esp_netif.h"
-#include "esp_system.h"
 #include "esp_wifi.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/event_groups.h"
-#include "freertos/task.h"
-#include "nvs_flash.h"
-#include "wifi_provisioning/manager.h"
-
+#include <stdbool.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
-static const char *TAG = "WiFi";
+#define WIFI_CONN_MAX_RETRY 5
 
-/* Event group to signal when we are connected & ready to make a request */
-static EventGroupHandle_t wifi_event_group;
-const int WIFI_CONNECTED_BIT = BIT0;
-const int WIFI_DISCONNECTED_BIT = BIT1;
+static const char *TAG = "WiFiManager";
+static int s_retry_num = 0;
 
-static void wifi_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data) {
-  static int retry_num = 0;
+static char sta_ip[16] = ""; // 仅用于存储 STA IP 字符串，避免写入只读内存
 
-  if (event_base == WIFI_EVENT) {
-    switch (event_id) {
-    case WIFI_EVENT_AP_START:
-      ESP_LOGI(TAG, "WiFi AP started");
-      break;
-    case WIFI_EVENT_AP_STACONNECTED: {
-      wifi_event_ap_staconnected_t *event = (wifi_event_ap_staconnected_t *)event_data;
-      ESP_LOGI(TAG, "Station " MACSTR " joined, AID=%d", MAC2STR(event->mac), event->aid);
-      break;
-    }
-    case WIFI_EVENT_AP_STADISCONNECTED: {
-      wifi_event_ap_stadisconnected_t *event = (wifi_event_ap_stadisconnected_t *)event_data;
-      ESP_LOGI(TAG, "Station " MACSTR " left, AID=%d", MAC2STR(event->mac), event->aid);
-      break;
-    }
-    case WIFI_EVENT_STA_START:
-      ESP_LOGI(TAG, "WiFi STA started, attempting to connect...");
+// WiFi 事件处理函数（核心：处理STA/AP所有状态）
+static void event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data) {
+  // ---------------- STA 事件 ----------------
+  if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
+    esp_wifi_connect(); // STA启动后自动连接路由器
+    ESP_LOGI(TAG, "STA 模式启动，正在连接路由器...");
+    sta_ip[0] = '\0'; // 清空IP地址
+  } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_CONNECTED) {
+    wifi_event_sta_connected_t *event = (wifi_event_sta_connected_t *)event_data;
+    (void)event;
+    ESP_LOGI(TAG, "成功连接到路由器, SSID: %s", event->ssid);
+  } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
+    if (s_retry_num < WIFI_CONN_MAX_RETRY) {
       esp_wifi_connect();
-      break;
-    case WIFI_EVENT_STA_DISCONNECTED:
-      if (retry_num < WIFI_MAXIMUM_RETRY) {
-        esp_wifi_connect();
-        retry_num++;
-        ESP_LOGI(TAG, "Retry to connect to the AP (attempt %d/%d)", retry_num, WIFI_MAXIMUM_RETRY);
-      } else {
-        ESP_LOGI(TAG, "Failed to connect to AP after %d attempts", WIFI_MAXIMUM_RETRY);
-        xEventGroupSetBits(wifi_event_group, WIFI_DISCONNECTED_BIT);
-      }
-      break;
-    case WIFI_EVENT_STA_CONNECTED:
-      ESP_LOGI(TAG, "Connected to AP");
-      retry_num = 0;
-      break;
+      s_retry_num++;
+      ESP_LOGI(TAG, "路由器断开，重连中... 第 %d 次", s_retry_num);
+    } else {
+      ESP_LOGI(TAG, "重连失败，停止自动重连");
     }
-  } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
+  } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_AUTHMODE_CHANGE) {
+    wifi_event_sta_authmode_change_t *event = (wifi_event_sta_authmode_change_t *)event_data;
+    (void)event;
+    ESP_LOGI(TAG, "路由器认证模式改变: %d -> %d", event->old_mode, event->new_mode);
+  } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
+    if (s_retry_num < WIFI_CONN_MAX_RETRY) {
+      esp_wifi_connect();
+      s_retry_num++;
+      ESP_LOGI(TAG, "路由器断开，重连中... 第 %d 次", s_retry_num);
+    } else {
+      ESP_LOGI(TAG, "重连失败，停止自动重连");
+    }
+  }
+
+  // ---------------- AP 事件 ----------------
+  else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_AP_START) {
+    // ESP_LOGI(TAG, "AP 模式启动，热点名称: %s", WIFI_AP_SSID);
+
+  } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_AP_STACONNECTED) {
+    wifi_event_ap_staconnected_t *event = (wifi_event_ap_staconnected_t *)event_data;
+    (void)event;
+    // ESP_LOGI(TAG, "设备已连接 AP, MAC: " MACSTR ", 在线数: %d", MAC2STR(event->mac), esp_wifi_ap_get_sta_count());
+  } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_AP_STADISCONNECTED) {
+    wifi_event_ap_stadisconnected_t *event = (wifi_event_ap_stadisconnected_t *)event_data;
+    (void)event;
+    // ESP_LOGI(TAG, "设备断开 AP, MAC: " MACSTR ", 在线数: %d", MAC2STR(event->mac), esp_wifi_ap_get_sta_count());
+  }
+
+  // ---------------- IP 事件 ----------------
+  else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
     ip_event_got_ip_t *event = (ip_event_got_ip_t *)event_data;
-    ESP_LOGI(TAG, "Got IP address: " IPSTR, IP2STR(&event->ip_info.ip));
-    retry_num = 0;
-    xEventGroupSetBits(wifi_event_group, WIFI_CONNECTED_BIT);
+    ESP_LOGI(TAG, "STA 获取IP: " IPSTR, IP2STR(&event->ip_info.ip));
+    s_retry_num = 0; // 重连计数清零
   }
 }
 
-void initialise_wifi(AppConfig *config) {
+void wifi_config_apply(const AppConfig *config) {
   if (!config) {
-    ESP_LOGW(TAG, "No configuration provided, using defaults");
+    ESP_LOGE(TAG, "wifi_config_apply: config pointer is NULL");
     return;
   }
 
-  /* Initialize TCP/IP */
-  ESP_ERROR_CHECK(esp_netif_init());
+  wifi_config_t cfg = {0};
+  cfg.ap.max_connection = 4;
+  cfg.sta.threshold.authmode = WIFI_AUTH_OPEN;
+  cfg.ap.authmode = WIFI_AUTH_OPEN;
 
-  /* Create event loop */
+  if (config->wifi_sta_ssid) {
+    strncpy((char *)cfg.sta.ssid, config->wifi_sta_ssid, sizeof(cfg.sta.ssid) - 1);
+    cfg.sta.ssid[sizeof(cfg.sta.ssid) - 1] = '\0';
+  }
+
+  if (config->wifi_sta_password && config->wifi_sta_password[0] != '\0') {
+    size_t sta_pwd_len = strnlen(config->wifi_sta_password, sizeof(cfg.sta.password));
+    if (sta_pwd_len >= 8) {
+      strncpy((char *)cfg.sta.password, config->wifi_sta_password, sizeof(cfg.sta.password) - 1);
+      cfg.sta.password[sizeof(cfg.sta.password) - 1] = '\0';
+      cfg.sta.threshold.authmode = WIFI_AUTH_WPA2_PSK;
+    } else {
+      ESP_LOGW(TAG, "STA password too short (%u). Falling back to OPEN auth.", sta_pwd_len);
+      cfg.sta.password[0] = '\0';
+      cfg.sta.threshold.authmode = WIFI_AUTH_OPEN;
+    }
+  }
+
+  if (config->wifi_ap_ssid) {
+    strncpy((char *)cfg.ap.ssid, config->wifi_ap_ssid, sizeof(cfg.ap.ssid) - 1);
+    cfg.ap.ssid[sizeof(cfg.ap.ssid) - 1] = '\0';
+  }
+
+  if (config->wifi_ap_password && config->wifi_ap_password[0] != '\0') {
+    size_t ap_pwd_len = strnlen(config->wifi_ap_password, sizeof(cfg.ap.password));
+    if (ap_pwd_len >= 8) {
+      strncpy((char *)cfg.ap.password, config->wifi_ap_password, sizeof(cfg.ap.password) - 1);
+      cfg.ap.password[sizeof(cfg.ap.password) - 1] = '\0';
+      cfg.ap.authmode = WIFI_AUTH_WPA2_PSK;
+    } else {
+      ESP_LOGW(TAG, "AP password too short (%u). Using OPEN AP (no password).", ap_pwd_len);
+      cfg.ap.password[0] = '\0';
+      cfg.ap.authmode = WIFI_AUTH_OPEN;
+    }
+  }
+
+  wifi_mode_t mode = WIFI_MODE_NULL;
+  if (config->wifi_ap_enabled && config->wifi_sta_enabled) {
+    mode = WIFI_MODE_APSTA;
+  } else if (config->wifi_ap_enabled) {
+    mode = WIFI_MODE_AP;
+  } else if (config->wifi_sta_enabled) {
+    mode = WIFI_MODE_STA;
+  } else {
+    mode = WIFI_MODE_NULL;
+  }
+
+  esp_err_t err = esp_wifi_set_mode(mode);
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "esp_wifi_set_mode failed: %s", esp_err_to_name(err));
+    return;
+  }
+
+  if (mode == WIFI_MODE_STA || mode == WIFI_MODE_APSTA) {
+    err = esp_wifi_set_config(WIFI_IF_STA, &cfg);
+    if (err != ESP_OK) {
+      ESP_LOGE(TAG, "esp_wifi_set_config(WIFI_IF_STA) failed: %s", esp_err_to_name(err));
+      return;
+    }
+  }
+  if (mode == WIFI_MODE_AP || mode == WIFI_MODE_APSTA) {
+    err = esp_wifi_set_config(WIFI_IF_AP, &cfg);
+    if (err != ESP_OK) {
+      ESP_LOGE(TAG, "esp_wifi_set_config(WIFI_IF_AP) failed: %s", esp_err_to_name(err));
+      return;
+    }
+  }
+
+  if (mode != WIFI_MODE_NULL) {
+    err = esp_wifi_start();
+    if (err != ESP_OK) {
+      ESP_LOGE(TAG, "esp_wifi_start failed: %s", esp_err_to_name(err));
+      return;
+    }
+  } else {
+    ESP_LOGW(TAG, "WiFi mode is NULL, not starting WiFi");
+  }
+}
+
+void wifi_init() {
+  // 1. 创建 WiFi 驱动任务
+  ESP_ERROR_CHECK(esp_netif_init());
   ESP_ERROR_CHECK(esp_event_loop_create_default());
 
-  /* Create WiFi event group */
-  wifi_event_group = xEventGroupCreate();
-
-  /* Create AP and STA interfaces */
-  esp_netif_create_default_wifi_ap();
+  // 2. 创建默认网络接口（必须：STA+AP各创建一个）
   esp_netif_create_default_wifi_sta();
+  esp_netif_create_default_wifi_ap();
 
-  /* Initialize WiFi */
+  // 3. WiFi 默认初始化配置
   wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
   ESP_ERROR_CHECK(esp_wifi_init(&cfg));
 
-  /* Register WiFi event handlers */
-  ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &wifi_event_handler, NULL));
-  ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &wifi_event_handler, NULL));
-
-  /* Get device MAC address for AP name */
-  uint8_t mac[6];
-  ESP_ERROR_CHECK(esp_wifi_get_mac(WIFI_IF_STA, mac));
-
-  /* Configure WiFi AP */
-  wifi_config_t ap_config = {
-      .ap =
-          {
-              .ssid_len = 0,
-              .channel = 1,
-              .authmode = WIFI_AUTH_OPEN,
-              .max_connection = 4,
-          },
-  };
-
-  snprintf((char *)ap_config.ap.ssid, sizeof(ap_config.ap.ssid), "%s", device_name());
-  ESP_LOGI(TAG, "Configuring WiFi AP with SSID: " MACSTR, MAC2STR(mac));
-  ESP_LOGI(TAG, "Configuring WiFi AP with SSID: %s", ap_config.ap.ssid);
-
-  /* Configure WiFi STA: use NVS credentials if saved, otherwise fall back to defaults */
-  wifi_config_t sta_config = {0};
-  esp_wifi_get_config(WIFI_IF_STA, &sta_config);
-  if (strlen((char *)sta_config.sta.ssid) == 0) {
-    strncpy((char *)sta_config.sta.ssid, config->wifi_sta_ssid, sizeof(sta_config.sta.ssid) - 1);
-    strncpy((char *)sta_config.sta.password, config->wifi_sta_password, sizeof(sta_config.sta.password) - 1);
-    sta_config.sta.threshold.authmode = WIFI_AUTH_WPA2_PSK;
-    ESP_LOGI(TAG, "No NVS credentials found, using default WiFi: %s", config->wifi_sta_ssid);
-  } else {
-    ESP_LOGI(TAG, "WiFi credentials found in NVS: %s", sta_config.sta.ssid);
-  }
-
-  bool sta_enabled = config->wifi_sta_enabled;
-
-  ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &ap_config));
-
-  if (sta_enabled) {
-    ESP_LOGI(TAG, "STA functionality is enabled (device boot). Will use SSID: %s", sta_config.sta.ssid);
-    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_APSTA));
-    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &sta_config));
-  } else {
-    ESP_LOGI(TAG, "STA functionality is disabled (device boot). Starting AP-only mode.");
-    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP));
-  }
-
-  /* Start WiFi */
-  ESP_ERROR_CHECK(esp_wifi_start());
-
-  ESP_LOGI(TAG, "=== WiFi Initialized ===");
-  ESP_LOGI(TAG, "AP SSID: %s", ap_config.ap.ssid);
-  ESP_LOGI(TAG, "AP Password: (none)");
-  ESP_LOGI(TAG, "AP IP: 192.168.4.1");
-  if (sta_enabled) {
-    ESP_LOGI(TAG, "STA will connect to: %s", sta_config.sta.ssid);
-  } else {
-    ESP_LOGI(TAG, "STA disabled on boot");
-  }
-  ESP_LOGI(TAG, "========================");
-}
-
-cJSON *wifi_sta_init(bool enabled, char *ssid, char *password) {
-  cJSON *result = cJSON_CreateObject();
-  if (!result) {
-    return NULL;
-  }
-
-  if (!enabled) {
-
-    esp_err_t err = esp_wifi_disconnect();
-    if (err != ESP_OK && err != ESP_ERR_WIFI_NOT_STARTED) {
-      cJSON_AddStringToObject(result, "error", "Failed to disconnect STA");
-      cJSON_AddStringToObject(result, "status", "disabled");
-      return result;
-    }
-
-    wifi_mode_t mode;
-    if (esp_wifi_get_mode(&mode) == ESP_OK) {
-      if (mode == WIFI_MODE_APSTA) {
-        esp_wifi_set_mode(WIFI_MODE_AP);
-      } else if (mode == WIFI_MODE_STA) {
-        esp_wifi_set_mode(WIFI_MODE_NULL);
-      }
-    }
-
-    cJSON_AddStringToObject(result, "status", "disabled");
-    return result;
-  }
-
-  if (!ssid || ssid[0] == '\0') {
-    cJSON_AddStringToObject(result, "error", "SSID is required when enabling STA");
-    return result;
-  }
-
-  wifi_config_t wifi_config = {0};
-  strncpy((char *)wifi_config.sta.ssid, ssid, sizeof(wifi_config.sta.ssid) - 1);
-  if (password && password[0] != '\0') {
-    strncpy((char *)wifi_config.sta.password, password, sizeof(wifi_config.sta.password) - 1);
-    wifi_config.sta.threshold.authmode = WIFI_AUTH_WPA2_PSK;
-  } else {
-    wifi_config.sta.threshold.authmode = WIFI_AUTH_OPEN;
-  }
-
-  esp_err_t err = esp_wifi_set_config(WIFI_IF_STA, &wifi_config);
-  if (err != ESP_OK) {
-    cJSON_AddStringToObject(result, "error", "Failed to set STA config");
-    return result;
-  }
-
-  wifi_mode_t mode;
-  if (esp_wifi_get_mode(&mode) == ESP_OK) {
-    if (mode == WIFI_MODE_NULL) {
-      esp_wifi_set_mode(WIFI_MODE_STA);
-    } else if (mode == WIFI_MODE_AP) {
-      esp_wifi_set_mode(WIFI_MODE_APSTA);
-    }
-  }
-
-  esp_wifi_disconnect();
-  err = esp_wifi_connect();
-  if (err != ESP_OK) {
-    cJSON_AddStringToObject(result, "error", "Failed to connect STA");
-    return result;
-  }
-
-  cJSON_AddStringToObject(result, "status", "connecting");
-  cJSON_AddStringToObject(result, "ssid", ssid);
-  return result;
-}
-
-cJSON *wifi_ap_init(bool enabled, char *ssid, char *password) {
-  cJSON *result = cJSON_CreateObject();
-  if (!result) {
-    return NULL;
-  }
-
-  if (!enabled) {
-    wifi_mode_t mode;
-    if (esp_wifi_get_mode(&mode) == ESP_OK) {
-      if (mode == WIFI_MODE_APSTA) {
-        esp_wifi_set_mode(WIFI_MODE_STA);
-      } else if (mode == WIFI_MODE_AP) {
-        esp_wifi_set_mode(WIFI_MODE_NULL);
-      }
-    }
-
-    cJSON_AddStringToObject(result, "status", "disabled");
-    return result;
-  }
-
-  if (!ssid || ssid[0] == '\0') {
-    cJSON_AddStringToObject(result, "error", "SSID is required when enabling AP");
-    return result;
-  }
-
-  wifi_config_t wifi_config = {0};
-  strncpy((char *)wifi_config.ap.ssid, ssid, sizeof(wifi_config.ap.ssid) - 1);
-  wifi_config.ap.ssid_len = strnlen((char *)wifi_config.ap.ssid, sizeof(wifi_config.ap.ssid));
-  wifi_config.ap.channel = 1;
-  wifi_config.ap.max_connection = 4;
-
-  if (password && password[0] != '\0') {
-    strncpy((char *)wifi_config.ap.password, password, sizeof(wifi_config.ap.password) - 1);
-    wifi_config.ap.authmode = WIFI_AUTH_WPA2_PSK;
-  } else {
-    wifi_config.ap.authmode = WIFI_AUTH_OPEN;
-  }
-
-  esp_err_t err = esp_wifi_set_config(WIFI_IF_AP, &wifi_config);
-  if (err != ESP_OK) {
-    cJSON_AddStringToObject(result, "error", "Failed to set AP config");
-    return result;
-  }
-
-  wifi_mode_t mode;
-  if (esp_wifi_get_mode(&mode) == ESP_OK) {
-    if (mode == WIFI_MODE_NULL) {
-      esp_wifi_set_mode(WIFI_MODE_AP);
-    } else if (mode == WIFI_MODE_STA) {
-      esp_wifi_set_mode(WIFI_MODE_APSTA);
-    }
-  }
-
-  err = esp_wifi_start();
-  if (err != ESP_OK) {
-    cJSON_AddStringToObject(result, "error", "Failed to start AP");
-    return result;
-  }
-
-  cJSON_AddStringToObject(result, "status", "AP enabled");
-  cJSON_AddStringToObject(result, "ssid", ssid);
-  return result;
+  // 4. 注册所有 WiFi/IP 事件
+  ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler, NULL, NULL));
+  ESP_ERROR_CHECK(esp_event_handler_instance_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &event_handler, NULL, NULL));
 }

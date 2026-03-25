@@ -1,5 +1,6 @@
 #include "rpc_m_wifi.h"
 #include "config.h"
+#include "wifi_manager.h"
 
 #include "rpc_m.h"
 
@@ -165,62 +166,24 @@ JsonRpcResponse *m_wifi_sta_set(cJSON *params) {
   if (!cJSON_IsBool(enable_json)) {
     return jsonrpc_response_create(NULL, "Invalid params: 'enable' is required and must be a boolean", JSONRPC_INVALID_PARAMS);
   }
+  if (!cJSON_IsString(ssid_json) || !ssid_json->valuestring) {
+    return jsonrpc_response_create(NULL, "Invalid params: 'ssid' is required and must be a string", JSONRPC_INVALID_PARAMS);
+  }
 
   const bool enable = cJSON_IsTrue(enable_json);
-
-  if (!enable) {
-
-    esp_err_t ret = esp_wifi_disconnect();
-    if (ret != ESP_OK && ret != ESP_ERR_WIFI_NOT_STARTED) {
-      return jsonrpc_response_create(NULL, "Failed to disconnect STA", JSONRPC_INTERNAL_ERROR);
-    }
-
-    // Preserve AP mode when possible, otherwise go to NULL mode.
-    wifi_mode_t current_mode;
-    if (esp_wifi_get_mode(&current_mode) == ESP_OK) {
-      if (current_mode == WIFI_MODE_APSTA) {
-        esp_wifi_set_mode(WIFI_MODE_AP);
-      } else if (current_mode == WIFI_MODE_STA) {
-        esp_wifi_set_mode(WIFI_MODE_NULL);
-      }
-    }
-
-    cJSON *result = cJSON_CreateObject();
-    cJSON_AddStringToObject(result, "status", "disabled");
-    return jsonrpc_response_create(result, NULL, 0);
-  }
-
-  if (!cJSON_IsString(ssid_json) || ssid_json->valuestring == NULL) {
-    return jsonrpc_response_create(NULL, "Invalid params: 'ssid' is required and must be a string when enable=true", JSONRPC_INVALID_PARAMS);
-  }
-
   const char *ssid = ssid_json->valuestring;
   const char *password = (password_json && cJSON_IsString(password_json)) ? password_json->valuestring : "";
 
-  wifi_config_t wifi_config = {0};
-  strncpy((char *)wifi_config.sta.ssid, ssid, sizeof(wifi_config.sta.ssid) - 1);
-  strncpy((char *)wifi_config.sta.password, password, sizeof(wifi_config.sta.password) - 1);
-  wifi_config.sta.threshold.authmode = (strlen(password) > 0) ? WIFI_AUTH_WPA2_PSK : WIFI_AUTH_OPEN;
-
-  esp_err_t ret = esp_wifi_set_config(WIFI_IF_STA, &wifi_config);
-  if (ret != ESP_OK) {
-    return jsonrpc_response_create(NULL, "Failed to set WiFi config", JSONRPC_INTERNAL_ERROR);
+  AppConfig *config = config_get();
+  if (!config) {
+    return jsonrpc_response_create(NULL, "Failed to load config", JSONRPC_INTERNAL_ERROR);
   }
-
-  wifi_mode_t mode;
-  if (esp_wifi_get_mode(&mode) == ESP_OK) {
-    if (mode == WIFI_MODE_NULL) {
-      esp_wifi_set_mode(WIFI_MODE_STA);
-    } else if (mode == WIFI_MODE_AP) {
-      esp_wifi_set_mode(WIFI_MODE_APSTA);
-    }
-  }
-
-  esp_wifi_disconnect();
-  ret = esp_wifi_connect();
-  if (ret != ESP_OK) {
-    return jsonrpc_response_create(NULL, "Failed to connect to WiFi with new config", JSONRPC_INTERNAL_ERROR);
-  }
+  config->wifi_sta_enabled = enable;
+  strncpy(config->wifi_sta_ssid, ssid, sizeof(config->wifi_sta_ssid) - 1);
+  strncpy(config->wifi_sta_password, password, sizeof(config->wifi_sta_password) - 1);
+  config_save(config);
+  wifi_config_apply(config);
+  config_free(config);
 
   cJSON *result = cJSON_CreateObject();
   cJSON_AddStringToObject(result, "ssid", ssid);
@@ -244,51 +207,16 @@ JsonRpcResponse *m_wifi_ap_set(cJSON *params) {
   const char *ssid = (ssid_json && cJSON_IsString(ssid_json)) ? ssid_json->valuestring : device_name();
   const char *password = (password_json && cJSON_IsString(password_json)) ? password_json->valuestring : "";
 
-  if (!enable) {
-    // Preserve STA mode when possible; if this was AP-only, set null.
-    wifi_mode_t current_mode;
-    if (esp_wifi_get_mode(&current_mode) == ESP_OK) {
-      if (current_mode == WIFI_MODE_APSTA) {
-        esp_wifi_set_mode(WIFI_MODE_STA);
-      } else if (current_mode == WIFI_MODE_AP) {
-        esp_wifi_set_mode(WIFI_MODE_NULL);
-      }
-    }
-
-    cJSON *result = cJSON_CreateObject();
-    cJSON_AddStringToObject(result, "ssid", ssid);
-    cJSON_AddStringToObject(result, "status", "AP disabled");
-    return jsonrpc_response_create(result, NULL, 0);
+  AppConfig *config = config_get();
+  if (!config) {
+    return jsonrpc_response_create(NULL, "Failed to load config", JSONRPC_INTERNAL_ERROR);
   }
-
-  // Configure WiFi AP settings
-  wifi_config_t wifi_config = {0};
-  strncpy((char *)wifi_config.ap.ssid, ssid, sizeof(wifi_config.ap.ssid) - 1);
-  strncpy((char *)wifi_config.ap.password, password, sizeof(wifi_config.ap.password) - 1);
-  wifi_config.ap.ssid_len = strnlen((char *)wifi_config.ap.ssid, sizeof(wifi_config.ap.ssid));
-  wifi_config.ap.channel = 1;
-  wifi_config.ap.max_connection = 4;
-  wifi_config.ap.authmode = (strlen(password) > 0) ? WIFI_AUTH_WPA2_PSK : WIFI_AUTH_OPEN;
-
-  esp_err_t ret = esp_wifi_set_config(WIFI_IF_AP, &wifi_config);
-  if (ret != ESP_OK) {
-    return jsonrpc_response_create(NULL, "Failed to set WiFi AP config", JSONRPC_INTERNAL_ERROR);
-  }
-
-  // Update mode if needed
-  wifi_mode_t mode;
-  if (esp_wifi_get_mode(&mode) == ESP_OK) {
-    if (mode == WIFI_MODE_NULL) {
-      esp_wifi_set_mode(WIFI_MODE_AP);
-    } else if (mode == WIFI_MODE_STA) {
-      esp_wifi_set_mode(WIFI_MODE_APSTA);
-    }
-  }
-
-  ret = esp_wifi_start();
-  if (ret != ESP_OK) {
-    return jsonrpc_response_create(NULL, "Failed to start WiFi AP", JSONRPC_INTERNAL_ERROR);
-  }
+  config->wifi_ap_enabled = enable;
+  strncpy(config->wifi_ap_ssid, ssid, sizeof(config->wifi_ap_ssid) - 1);
+  strncpy(config->wifi_ap_password, password, sizeof(config->wifi_ap_password) - 1);
+  config_save(config);
+  wifi_config_apply(config);
+  config_free(config);
 
   cJSON *result = cJSON_CreateObject();
   cJSON_AddStringToObject(result, "ssid", ssid);

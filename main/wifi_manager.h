@@ -3,9 +3,8 @@
 
 #include "config.h"
 
-void initialise_wifi(AppConfig *config);
+void wifi_init();
 
-cJSON *wifi_sta_init(bool enabled, char *ssid, char *password);
-cJSON *wifi_ap_init(bool enabled, char *ssid, char *password);
+void wifi_config_apply(const AppConfig *config);
 
 #endif // WIFI_MANAGER_H

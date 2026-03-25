@@ -3,7 +3,6 @@
 
 #include "cJSON.h"
 #include "rpc_json.h"
-#include "wifi_manager.h"
 
 #include "esp_log.h"
 #include <stdlib.h>
@@ -40,8 +39,8 @@ JsonRpcResponse *m_config_get(cJSON *params) {
     }
   }
 
-  char *result = app_config_to_json(cfg);
-  app_config_free(cfg);
+  cJSON *result = config_to_json(cfg);
+  config_free(cfg);
   if (!result) {
     return jsonrpc_response_create(NULL, NULL, JSONRPC_INTERNAL_ERROR);
   }
@@ -98,20 +97,10 @@ JsonRpcResponse *m_config_set(cJSON *params) {
     cfg->wifi_sta_enabled = cJSON_IsTrue(item);
   }
 
-  config_set(cfg);
+  config_save(cfg);
 
-  // Apply runtime WiFi changes immediately if config changed.
-  cJSON *sta_res = wifi_sta_init(cfg->wifi_sta_enabled, cfg->wifi_sta_ssid, cfg->wifi_sta_password);
-  cJSON *ap_res = wifi_ap_init(cfg->wifi_ap_enabled, cfg->wifi_ap_ssid, cfg->wifi_ap_password);
-  if (sta_res) {
-    cJSON_Delete(sta_res);
-  }
-  if (ap_res) {
-    cJSON_Delete(ap_res);
-  }
-
-  cJSON *response_config = app_config_to_json(cfg);
-  app_config_free(cfg);
+  cJSON *response_config = config_to_json(cfg);
+  config_free(cfg);
 
   if (!response_config) {
     return jsonrpc_response_create(NULL, "Failed to build response", JSONRPC_INTERNAL_ERROR);

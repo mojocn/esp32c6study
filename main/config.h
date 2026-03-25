@@ -4,8 +4,6 @@
 #include "cJSON.h"
 #include <stdbool.h>
 
-#define WIFI_MAXIMUM_RETRY 5
-
 /* MQTT Configuration */
 #define MQTT_BROKER_HOST "mqtt.shellyiot.cn"
 #define MQTT_BROKER_PORT 1883
@@ -28,13 +26,12 @@ typedef struct {
 
 } AppConfig;
 
-void app_config_free(AppConfig *config);
+AppConfig *config_from_json(cJSON *json_str);
+cJSON *config_to_json(const AppConfig *config);
 
-AppConfig *app_config_from_json(cJSON *json_str);
-cJSON *app_config_to_json(const AppConfig *config);
-
-AppConfig *config_init(void);
+AppConfig *config_init();
 AppConfig *config_get();
-void config_set(const AppConfig *config);
+void config_free(AppConfig *config);
+void config_save(const AppConfig *config);
 
 #endif // CONFIG_H

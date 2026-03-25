@@ -26,6 +26,8 @@ void app_main(void) {
     ESP_LOGE(TAG, "Failed to initialize configuration");
     return;
   }
+  wifi_init();
+  wifi_config_apply(config);
 
   /* Initialize GPIO */
   // gpio_control_init();
@@ -44,12 +46,6 @@ void app_main(void) {
   // buzzer_demo();
 
   /* Initialize WiFi (must be before BLE to allow BLE provisioning if needed) */
-  if (config) {
-    initialise_wifi(config);
-  } else {
-    ESP_LOGW(TAG, "App configuration not found, starting WiFi with defaults");
-    initialise_wifi(NULL);
-  }
 
   /* Start HTTP Server */
   http_server_start();
@@ -69,4 +65,6 @@ void app_main(void) {
   } else {
     ESP_LOGE(TAG, "Failed to start BLE GATT server");
   }
+
+  config_free(config);
 }
