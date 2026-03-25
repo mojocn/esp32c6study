@@ -44,4 +44,12 @@ void store_json_set(const char *key, const cJSON *value);
  */
 cJSON *store_json_get(const char *key);
 
+/**
+ * @brief      Retrieve all keys from the store namespace
+ *
+ * @param[out] out_count Number of keys returned
+ * @return     NULL or pointer to malloc'd array of malloc'd strings. Caller must free each string and array.
+ */
+char **store_keys();
+
 #endif // STORE_H

@@ -5,6 +5,7 @@
 #include "nvs_flash.h"
 
 #include <stdlib.h>
+#include <string.h>
 
 static const char *NAME_SPACE = "store";
 
@@ -73,6 +74,81 @@ void store_json_set(const char *key, const cJSON *value) {
     }
     store_str_set(key, str);
     free(str);
+}
+
+char **store_keys() {
+
+    nvs_handle_t handle;
+    esp_err_t err = nvs_open(NAME_SPACE, NVS_READONLY, &handle);
+    if (err != ESP_OK) {
+        ESP_LOGE(NAME_SPACE, "Failed to open NVS for reading keys: %s", esp_err_to_name(err));
+        return NULL;
+    }
+
+    nvs_iterator_t it = NULL;
+    err = nvs_entry_find_in_handle(handle, NVS_TYPE_ANY, &it);
+    if (err == ESP_ERR_NVS_NOT_FOUND) {
+        nvs_close(handle);
+        return NULL;
+    }
+    if (err != ESP_OK) {
+        ESP_LOGE(NAME_SPACE, "Failed to find NVS entries: %s", esp_err_to_name(err));
+        nvs_close(handle);
+        return NULL;
+    }
+
+    size_t count = 0;
+    size_t capacity = 8;
+    char **keys = malloc((capacity + 1) * sizeof(char *));
+    if (!keys) {
+        ESP_LOGE(NAME_SPACE, "Failed to allocate key list");
+        nvs_release_iterator(it);
+        nvs_close(handle);
+        return NULL;
+    }
+
+    while (err == ESP_OK) {
+        nvs_entry_info_t info;
+        err = nvs_entry_info(it, &info);
+        if (err != ESP_OK) {
+            ESP_LOGE(NAME_SPACE, "Failed to get entry info: %s", esp_err_to_name(err));
+            break;
+        }
+
+        size_t key_len = strlen(info.key) + 1;
+        char *key_copy = malloc(key_len);
+        if (!key_copy) {
+            ESP_LOGE(NAME_SPACE, "Failed to allocate key string");
+            break;
+        }
+        memcpy(key_copy, info.key, key_len);
+
+        if (count >= capacity) {
+            size_t ncapacity = capacity * 2;
+            char **tmp = realloc(keys, (ncapacity + 1) * sizeof(char *));
+            if (!tmp) {
+                ESP_LOGE(NAME_SPACE, "Failed to grow key list");
+                free(key_copy);
+                break;
+            }
+            keys = tmp;
+            capacity = ncapacity;
+        }
+
+        keys[count++] = key_copy;
+        err = nvs_entry_next(&it);
+    }
+
+    nvs_release_iterator(it);
+    nvs_close(handle);
+
+    if (count == 0) {
+        free(keys);
+        return NULL;
+    }
+
+    keys[count] = NULL;
+    return keys;
 }
 
 cJSON *store_json_get(const char *key) {

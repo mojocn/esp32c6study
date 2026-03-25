@@ -62,8 +62,4 @@ void app_main(void) {
     } else {
         ESP_LOGE(TAG, "Failed to start BLE GATT server");
     }
-
-    ESP_LOGI(TAG, "=================================================");
-    ESP_LOGI(TAG, "JSON-RPC 2.0 Server Ready!");
-    ESP_LOGI(TAG, "=================================================");
 }
