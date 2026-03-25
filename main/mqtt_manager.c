@@ -7,8 +7,8 @@
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "jsonrpc.h"
 #include "mqtt_client.h"
+#include "rpc_methods.h"
 
 #include <ctype.h>
 #include <stdio.h>
@@ -160,7 +160,7 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
 
             ESP_LOGI(TAG, "RPC request: %s", payload);
 
-            char *response = jsonrpc_process_request(payload);
+            char *response = rpc_process_request(payload);
             free(payload);
 
             if (response) {

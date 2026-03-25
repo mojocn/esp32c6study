@@ -10,9 +10,9 @@
 #include "esp_log.h"
 #include "host/ble_hs.h"
 #include "host/util/util.h"
-#include "jsonrpc.h"
 #include "nimble/nimble_port.h"
 #include "nimble/nimble_port_freertos.h"
+#include "rpc_methods.h"
 #include "services/gap/ble_svc_gap.h"
 #include "services/gatt/ble_svc_gatt.h"
 
@@ -117,7 +117,7 @@ static int nus_access_cb(uint16_t conn_handle, uint16_t attr_handle, struct ble_
 
     ESP_LOGI(TAG, "BLE RPC <<< %s", request);
 
-    char *response = jsonrpc_process_request(request);
+    char *response = rpc_process_request(request);
     free(request);
 
     if (response) {

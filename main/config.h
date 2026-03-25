@@ -15,12 +15,6 @@
 #define PROV_SECURITY_VERSION 2 /* 0: No security, 1: WPA2, 2: SRP6a */
 #define PROV_MGR_MAX_RETRY_CNT 5
 
-/* JSON-RPC 2.0 Error Codes */
-#define JSONRPC_PARSE_ERROR -32700
-#define JSONRPC_INVALID_REQUEST -32600
-#define JSONRPC_METHOD_NOT_FOUND -32601
-#define JSONRPC_INVALID_PARAMS -32602
-#define JSONRPC_INTERNAL_ERROR -32603
 /* WiFi AP SSID Configuration */
 #define DEVICE_NAME "ShellyEric"
 #define WIFI_AP_PASS ""

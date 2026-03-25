@@ -1,4 +1,4 @@
-#include "jsonrpc_methods.h"
+#include "rpc_methods.h"
 
 #include "config.h"
 #include "dht11.h"
@@ -8,47 +8,26 @@
 #include "esp_wifi.h"
 #include "gpio_control.h"
 #include "ota_manager.h"
+#include "rpc_json.h"
 
 #include <string.h>
 
-static const char *TAG = "jsonrpc_methods";
-
-/* RPC Method: shelly_list_methods - lists available RPC methods */
-static cJSON *rpc_method_shelly_list_methods(cJSON *params) {
-    cJSON *result = cJSON_CreateObject();
-    cJSON *methods = cJSON_CreateArray();
-
-    cJSON_AddItemToArray(methods, cJSON_CreateString("Method.List"));
-    cJSON_AddItemToArray(methods, cJSON_CreateString("Wifi.Set"));
-    cJSON_AddItemToArray(methods, cJSON_CreateString("subtract"));
-    cJSON_AddItemToArray(methods, cJSON_CreateString("Get.SystemInfo"));
-    cJSON_AddItemToArray(methods, cJSON_CreateString("light"));
-    cJSON_AddItemToArray(methods, cJSON_CreateString("BLE.GetInfo"));
-    cJSON_AddItemToArray(methods, cJSON_CreateString("OTA.Update"));
-    cJSON_AddItemToArray(methods, cJSON_CreateString("Get.TemperatureHumidity"));
-
-    cJSON_AddItemToObject(result, "methods", methods);
-
-    return result;
-}
+static const char *TAG = "rpc_methods";
 
 /* RPC Method: wifi_set - sets WiFi parameters */
-static cJSON *rpc_method_wifi_set(cJSON *params) {
+static JsonRpcResponse *rpc_method_wifi_set(cJSON *params) {
     // Validate params - expecting an object with "ssid" and optional "password"
     if (!cJSON_IsObject(params)) {
-        ESP_LOGE(TAG, "wifi_set: params must be an object");
-
-        // return jsonrpc_error_response(1, 1, JSONRPC_INVALID_PARAMS, "Invalid params: expected an object with 'ssid'
-        // and optional 'password'"); --- IGNORE ---
-        return
+        return jsonrpc_response_create(NULL, "Invalid params: expected an object with 'ssid' and optional 'password'",
+                                       JSONRPC_INVALID_PARAMS);
     }
 
     cJSON *ssid_json = cJSON_GetObjectItem(params, "ssid");
     cJSON *password_json = cJSON_GetObjectItem(params, "password");
 
     if (!cJSON_IsString(ssid_json) || ssid_json->valuestring == NULL) {
-        ESP_LOGE(TAG, "wifi_set: ssid is required and must be a string");
-        return NULL;
+        return jsonrpc_response_create(NULL, "Invalid params: 'ssid' is required and must be a string",
+                                       JSONRPC_INVALID_PARAMS);
     }
 
     const char *ssid = ssid_json->valuestring;
@@ -65,44 +44,25 @@ static cJSON *rpc_method_wifi_set(cJSON *params) {
     // Set WiFi configuration (this also saves to NVS)
     esp_err_t ret = esp_wifi_set_config(WIFI_IF_STA, &wifi_config);
     if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to set WiFi config: %s", esp_err_to_name(ret));
-        return NULL;
+        return jsonrpc_response_create(NULL, "Failed to set WiFi config", JSONRPC_INTERNAL_ERROR);
     }
 
     // Disconnect from current network and reconnect with new credentials
     esp_wifi_disconnect();
     ret = esp_wifi_connect();
     if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to initiate WiFi connection: %s", esp_err_to_name(ret));
-        return NULL;
+        return jsonrpc_response_create(NULL, "Failed to connect to WiFi with new config", JSONRPC_INTERNAL_ERROR);
     }
 
     // Return success response with the SSID
     cJSON *result = cJSON_CreateObject();
     cJSON_AddStringToObject(result, "ssid", ssid);
     cJSON_AddStringToObject(result, "status", "connecting");
-    return result;
-}
-
-/* RPC Method: subtract - subtracts two numbers */
-static cJSON *rpc_method_subtract(cJSON *params) {
-    if (!cJSON_IsArray(params) || cJSON_GetArraySize(params) != 2) {
-        return NULL;
-    }
-
-    cJSON *a = cJSON_GetArrayItem(params, 0);
-    cJSON *b = cJSON_GetArrayItem(params, 1);
-
-    if (!cJSON_IsNumber(a) || !cJSON_IsNumber(b)) {
-        return NULL;
-    }
-
-    double result = a->valuedouble - b->valuedouble;
-    return cJSON_CreateNumber(result);
+    return jsonrpc_response_create(result, NULL, 0);
 }
 
 /* RPC Method: Get.SystemInfo - returns ESP32 system information */
-static cJSON *rpc_method_get_system_info(cJSON *params) {
+static JsonRpcResponse *rpc_method_get_system_info(cJSON *params) {
     cJSON *info = cJSON_CreateObject();
 
     esp_chip_info_t chip_info;
@@ -114,18 +74,18 @@ static cJSON *rpc_method_get_system_info(cJSON *params) {
     cJSON_AddNumberToObject(info, "free_heap", esp_get_free_heap_size());
     cJSON_AddStringToObject(info, "idf_version", esp_get_idf_version());
 
-    return info;
+    return jsonrpc_response_create(info, NULL, 0);
 }
 
 /* RPC Method: light - control GPIO 4 with parameter 1/0 */
-static cJSON *rpc_method_light(cJSON *params) {
+static JsonRpcResponse *rpc_method_light(cJSON *params) {
     if (params == NULL || !cJSON_IsNumber(params)) {
-        return NULL;
+        return jsonrpc_response_create(NULL, "Invalid params: expected numeric 0 or 1", JSONRPC_INVALID_PARAMS);
     }
 
     int state = (int)params->valuedouble;
     if (state != 0 && state != 1) {
-        return NULL;
+        return jsonrpc_response_create(NULL, "Invalid params: expected 0 or 1", JSONRPC_INVALID_PARAMS);
     }
 
     gpio_set_light_state(state);
@@ -133,11 +93,11 @@ static cJSON *rpc_method_light(cJSON *params) {
     cJSON *result = cJSON_CreateObject();
     cJSON_AddNumberToObject(result, "gpio", GPIO_LIGHT_4);
     cJSON_AddNumberToObject(result, "state", state);
-    return result;
+    return jsonrpc_response_create(result, NULL, 0);
 }
 
 /* RPC Method: ble_get_info - returns BLE connection status and info */
-static cJSON *rpc_method_ble_get_info(cJSON *params) {
+static JsonRpcResponse *rpc_method_ble_get_info(cJSON *params) {
     cJSON *info = cJSON_CreateObject();
 
     // Get BLE MAC address
@@ -150,19 +110,18 @@ static cJSON *rpc_method_ble_get_info(cJSON *params) {
     cJSON_AddBoolToObject(info, "enabled", true);
     cJSON_AddStringToObject(info, "status", "active");
 
-    return info;
+    return jsonrpc_response_create(info, NULL, 0);
 }
 
 /* RPC Method: ota_update - triggers OTA firmware update */
-static cJSON *rpc_method_ota_update(cJSON *params) {
+static JsonRpcResponse *rpc_method_ota_update(cJSON *params) {
     if (!cJSON_IsObject(params)) {
-        return NULL;
+        return jsonrpc_response_create(NULL, "Invalid params: expected an object with 'url'", JSONRPC_INVALID_PARAMS);
     }
 
     cJSON *url_json = cJSON_GetObjectItem(params, "url");
     if (!cJSON_IsString(url_json) || url_json->valuestring == NULL) {
-        ESP_LOGE(TAG, "OTA.Update: 'url' param required");
-        return NULL;
+        return jsonrpc_response_create(NULL, "Invalid params: 'url' is required", JSONRPC_INVALID_PARAMS);
     }
 
     esp_err_t err = ota_manager_start(url_json->valuestring);
@@ -174,22 +133,20 @@ static cJSON *rpc_method_ota_update(cJSON *params) {
         cJSON_AddStringToObject(result, "status", "error");
         cJSON_AddStringToObject(result, "reason", esp_err_to_name(err));
     }
-    return result;
+    return jsonrpc_response_create(result, NULL, 0);
 }
 
 /* RPC Method: Get.TemperatureHumidity - returns temperature and humidity */
-static cJSON *rpc_method_dht11_get(cJSON *params) {
+static JsonRpcResponse *rpc_method_dht11_get(cJSON *params) {
     dht11_reading_t reading;
     esp_err_t err = dht11_get_last_reading(&reading);
     if (err == ESP_ERR_NOT_FOUND) {
-        ESP_LOGD(TAG, "DHT11: no reading available yet");
         cJSON *result = cJSON_CreateObject();
         cJSON_AddStringToObject(result, "status", "no_data");
         cJSON_AddStringToObject(result, "message", "DHT11 reading not ready yet");
-        return result;
+        return jsonrpc_response_create(result, NULL, 0);
     } else if (err != ESP_OK) {
-        ESP_LOGW(TAG, "DHT11 read status error: %s", esp_err_to_name(err));
-        return NULL;
+        return jsonrpc_response_create(NULL, "DHT11 read error", JSONRPC_INTERNAL_ERROR);
     }
 
     cJSON *result = cJSON_CreateObject();
@@ -197,31 +154,72 @@ static cJSON *rpc_method_dht11_get(cJSON *params) {
     cJSON_AddNumberToObject(result, "humidity", reading.humidity);
     cJSON_AddStringToObject(result, "unit_temp", "C");
     cJSON_AddStringToObject(result, "unit_humidity", "%");
-    return result;
+    return jsonrpc_response_create(result, NULL, 0);
 }
 
-/* RPC Method Dispatcher */
+typedef JsonRpcResponse *(*rpc_handler_t)(cJSON *params);
 
-cJSON *dispatch_method(const char *method, cJSON *params) {
-    // trim space for method name
+/* RPC Method declarations */
+static JsonRpcResponse *rpc_method_shelly_list_methods(cJSON *params);
 
-    if (strcasecmp(method, "Method.List") == 0) {
-        return rpc_method_shelly_list_methods(params);
-    } else if (strcasecmp(method, "Wifi.Set") == 0) {
-        return rpc_method_wifi_set(params);
-    } else if (strcasecmp(method, "subtract") == 0) {
-        return rpc_method_subtract(params);
-    } else if (strcasecmp(method, "Get.SystemInfo") == 0) {
-        return rpc_method_get_system_info(params);
-    } else if (strcasecmp(method, "light") == 0) {
-        return rpc_method_light(params);
-    } else if (strcasecmp(method, "BLE.GetInfo") == 0) {
-        return rpc_method_ble_get_info(params);
-    } else if (strcasecmp(method, "OTA.Update") == 0) {
-        return rpc_method_ota_update(params);
-    } else if (strcasecmp(method, "Get.TemperatureHumidity") == 0) {
-        return rpc_method_dht11_get(params);
+typedef struct {
+    const char *method;
+    rpc_handler_t handler;
+} RpcMethodEntry;
+
+static RpcMethodEntry rpc_methods[] = {
+
+    {"Method.List", rpc_method_shelly_list_methods},
+    {"Wifi.Set", rpc_method_wifi_set},
+    {"BLE.GetInfo", rpc_method_ble_get_info},
+    {"OTA.Update", rpc_method_ota_update},
+    {"Get.TemperatureHumidity", rpc_method_dht11_get},
+    {"Get.SystemInfo", rpc_method_get_system_info},
+    {"Light.Set", rpc_method_light},
+
+};
+
+static int rpc_method_count = sizeof(rpc_methods) / sizeof(rpc_methods[0]);
+
+static rpc_handler_t find_rpc_handler(const char *method) {
+    for (size_t i = 0; i < rpc_method_count; i++) {
+        if (strcasecmp(method, rpc_methods[i].method) == 0) {
+            return rpc_methods[i].handler;
+        }
     }
+    return NULL;
+}
 
-    return NULL; // Method not found
+/* RPC Method: shelly_list_methods - lists available RPC methods */
+static JsonRpcResponse *rpc_method_shelly_list_methods(cJSON *params) {
+    cJSON *methods = cJSON_CreateArray();
+    for (size_t i = 0; i < rpc_method_count; i++) {
+        cJSON_AddItemToArray(methods, cJSON_CreateString(rpc_methods[i].method));
+    }
+    return jsonrpc_response_create(methods, NULL, 0);
+}
+
+char *rpc_process_request(const char *request_str) {
+    JsonRpcRequest *request = jsonrpc_parse_request(request_str); // This will log errors if the request is invalid, but
+    JsonRpcResponse *response = NULL;
+    if (!request) {
+        response = jsonrpc_response_create(NULL, "Parse error: invalid JSON", JSONRPC_PARSE_ERROR);
+    } else if (strcmp(request->jsonrpc, "2.0") != 0) {
+        response =
+            jsonrpc_response_create(NULL, "Invalid Request: jsonrpc version must be '2.0'", JSONRPC_INVALID_REQUEST);
+    } else if (!request->method) {
+        response = jsonrpc_response_create(NULL, "Invalid Request: 'method' is required", JSONRPC_INVALID_REQUEST);
+    } else {
+        rpc_handler_t handler = find_rpc_handler(request->method);
+        if (handler) {
+            response = handler(request->params);
+        } else {
+            response = jsonrpc_response_create(NULL, "Method not found", JSONRPC_METHOD_NOT_FOUND);
+        }
+    }
+    response->id = cJSON_Duplicate(request->id, true); // Ensure response ID matches request ID
+    char *response_str = jsonrpc_response_to_json(response);
+    jsonrpc_response_free(response);
+    jsonrpc_request_free(request);
+    return response_str;
 }
