@@ -1,13 +1,7 @@
 #include "rpc_m.h"
 
-#include "config.h"
-#include "dht11.h"
-#include "esp_chip_info.h"
 #include "esp_log.h"
 #include "esp_system.h"
-#include "esp_wifi.h"
-#include "gpio_control.h"
-#include "ota_manager.h"
 #include "rpc_json.h"
 #include "rpc_m_ble.h"
 #include "rpc_m_ht.h"
