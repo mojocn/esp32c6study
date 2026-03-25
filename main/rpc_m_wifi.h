@@ -5,6 +5,7 @@
 #include "cJSON.h"
 #include "rpc_json.h"
 
-char *rpc_process_request(const char *request_str);
+JsonRpcResponse *m_wifi_set(cJSON *params);
+JsonRpcResponse *m_wifi_info(cJSON *params);
 
 #endif // RPC_M_WIFI_H

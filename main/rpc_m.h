@@ -9,6 +9,4 @@ typedef JsonRpcResponse *(*rpc_handler_t)(cJSON *params);
 
 char *rpc_process_request(const char *request_str);
 
-void register_method(char *method_name, rpc_handler_t handler);
-
 #endif // RPC_M_H
