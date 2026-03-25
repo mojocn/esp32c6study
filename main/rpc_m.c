@@ -13,7 +13,6 @@
 #include "rpc_m_ht.h"
 #include "rpc_m_kv.h"
 #include "rpc_m_light.h"
-#include "rpc_m_ota.h"
 #include "rpc_m_sys.h"
 #include "rpc_m_wifi.h"
 
@@ -31,7 +30,7 @@ typedef struct {
 
 static const RpcMethodEntry rpc_methods[] = {
     {"Sys.Info", m_sys_info}, {"Sys.Methods", m_sys_methods}, {"Wifi.Set", m_wifi_set}, {"Wifi.Info", m_wifi_info},
-    {"BLE.Info", m_ble_info}, {"OTA.Update", m_ota_update},   {"Ht.Info", m_ht_info},   {"Light.Set", m_light_set},
+    {"BLE.Info", m_ble_info}, {"Sys.OTA", m_sys_ota},   {"Ht.Info", m_ht_info},   {"Light.Set", m_light_set},
     {"KV.Keys", m_kv_keys},   {"KV.Set", m_kv_set},           {"KV.Get", m_kv_get},
 };
 static int rpc_method_count = sizeof(rpc_methods) / sizeof(rpc_methods[0]);

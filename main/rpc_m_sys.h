@@ -6,5 +6,6 @@
 #include "rpc_json.h"
 
 JsonRpcResponse *m_sys_info(cJSON *params);
+JsonRpcResponse *m_sys_ota(cJSON *params);
 
 #endif // RPC_M_SYS_H
