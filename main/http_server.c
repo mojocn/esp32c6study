@@ -9,45 +9,52 @@
 static const char *TAG = "HTTP";
 
 /* JSON-RPC Request Handler */
+#define JSONRPC_MAX_BODY 2048
+
 static esp_err_t jsonrpc_handler(httpd_req_t *req) {
     char *buf = NULL;
     char *response_str = NULL;
-    size_t buf_len;
-
-    /* Get content length */
-    buf_len = req->content_len;
+    size_t buf_len = req->content_len;
 
     if (buf_len == 0) {
         httpd_resp_set_type(req, "application/json");
-        httpd_resp_sendstr(
-            req, "{\"jsonrpc\":\"2.0\",\"error\":{\"code\":-32600,\"message\":\"Empty request\"},\"id\":null}");
+        httpd_resp_sendstr(req,
+                           "{\"jsonrpc\":\"2.0\",\"error\":{\"code\":-32600,\"message\":\"Empty request\"},\"id\":null}");
         return ESP_OK;
     }
 
-    /* Allocate buffer for request body */
+    if (buf_len > JSONRPC_MAX_BODY) {
+        httpd_resp_set_type(req, "application/json");
+        httpd_resp_set_status(req, "413 Payload Too Large");
+        httpd_resp_sendstr(req,
+                           "{\"jsonrpc\":\"2.0\",\"error\":{\"code\":-32600,\"message\":\"Request body too large\"},\"id\":null}");
+        return ESP_OK;
+    }
+
     buf = malloc(buf_len + 1);
     if (buf == NULL) {
         httpd_resp_set_type(req, "application/json");
-        httpd_resp_sendstr(
-            req,
-            "{\"jsonrpc\":\"2.0\",\"error\":{\"code\":-32603,\"message\":\"Memory allocation failed\"},\"id\":null}");
+        httpd_resp_sendstr(req,
+                           "{\"jsonrpc\":\"2.0\",\"error\":{\"code\":-32603,\"message\":\"Memory allocation failed\"},\"id\":null}");
         return ESP_OK;
     }
 
-    /* Read request body */
-    int ret = httpd_req_recv(req, buf, buf_len);
-    if (ret <= 0) {
-        free(buf);
-        if (ret == HTTPD_SOCK_ERR_TIMEOUT) {
-            httpd_resp_send_408(req);
+    size_t received = 0;
+    while (received < buf_len) {
+        int ret = httpd_req_recv(req, buf + received, buf_len - received);
+        if (ret <= 0) {
+            if (ret == HTTPD_SOCK_ERR_TIMEOUT) {
+                continue; /* Retry until content_len bytes are read */
+            }
+            free(buf);
+            return ESP_FAIL;
         }
-        return ESP_FAIL;
+        received += (size_t)ret;
     }
-    buf[buf_len] = '\0';
+    buf[received] = '\0';
 
     ESP_LOGI(TAG, "HTTP Received: %s", buf);
 
-    /* Process JSON-RPC request */
     response_str = rpc_process_request(buf);
     free(buf);
 
@@ -56,7 +63,6 @@ static esp_err_t jsonrpc_handler(httpd_req_t *req) {
         httpd_resp_sendstr(req, response_str);
         free(response_str);
     } else {
-        /* Notification - no response */
         httpd_resp_set_status(req, "204 No Content");
         httpd_resp_send(req, NULL, 0);
     }

@@ -27,8 +27,12 @@ JsonRpcRequest *jsonrpc_parse_request(const char *json) {
         return NULL;
     }
 
-    JsonRpcRequest *req = malloc(sizeof(JsonRpcRequest));
-    strcpy(req->jsonrpc, jsonrpc_item->valuestring);
+    JsonRpcRequest *req = calloc(1, sizeof(JsonRpcRequest));
+    if (!req) {
+        cJSON_Delete(root);
+        return NULL;
+    }
+    snprintf(req->jsonrpc, sizeof(req->jsonrpc), "%s", jsonrpc_item->valuestring);
     req->method = strdup(method_item->valuestring);
 
     req->id = cJSON_Duplicate(cJSON_GetObjectItem(root, "id"), true);

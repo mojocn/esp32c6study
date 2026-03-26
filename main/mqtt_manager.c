@@ -20,6 +20,7 @@ static const char *TAG = "MQTT";
 static esp_mqtt_client_handle_t s_client = NULL;
 static bool s_connected = false;
 static char s_broker_host[128];
+static bool s_client_started = false;
 
 static const char *normalize_mqtt_host(const char *raw_host, uint16_t *out_port) {
   if (!raw_host || !out_port) {
@@ -119,7 +120,9 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
     ESP_LOGI(TAG, "Subscribed to %s", s_topic_rpc);
 
     /* Kick off heartbeat timer */
-    esp_timer_start_periodic(s_heartbeat_timer, (uint64_t)MQTT_HEARTBEAT_INTERVAL_S * 1000000ULL);
+    if (s_heartbeat_timer) {
+      esp_timer_start_periodic(s_heartbeat_timer, (uint64_t)MQTT_HEARTBEAT_INTERVAL_S * 1000000ULL);
+    }
 
     /* Publish an immediate online announcement */
     {
@@ -132,7 +135,9 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
   case MQTT_EVENT_DISCONNECTED:
     ESP_LOGW(TAG, "Disconnected from broker");
     s_connected = false;
-    esp_timer_stop(s_heartbeat_timer);
+    if (s_heartbeat_timer) {
+      esp_timer_stop(s_heartbeat_timer);
+    }
     break;
 
   case MQTT_EVENT_DATA: {
@@ -197,22 +202,28 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
 /* ------------------------------------------------------------------ */
 
 esp_err_t mqtt_manager_start(void) {
+  if (s_client_started) {
+    return ESP_OK;
+  }
+
   /* Build topic strings */
   snprintf(s_topic_rpc, sizeof(s_topic_rpc), "%s/rpc", device_name());
   snprintf(s_topic_rpc_resp, sizeof(s_topic_rpc_resp), "%s/rpc/response", device_name());
   snprintf(s_topic_status, sizeof(s_topic_status), "%s/status", device_name());
 
   /* Create heartbeat timer (one-shot=false => periodic) */
-  esp_timer_create_args_t timer_args = {
-      .callback = heartbeat_cb,
-      .arg = NULL,
-      .dispatch_method = ESP_TIMER_TASK,
-      .name = "mqtt_hb",
-  };
-  esp_err_t err = esp_timer_create(&timer_args, &s_heartbeat_timer);
-  if (err != ESP_OK) {
-    ESP_LOGE(TAG, "Failed to create heartbeat timer: %s", esp_err_to_name(err));
-    return err;
+  if (!s_heartbeat_timer) {
+    esp_timer_create_args_t timer_args = {
+        .callback = heartbeat_cb,
+        .arg = NULL,
+        .dispatch_method = ESP_TIMER_TASK,
+        .name = "mqtt_hb",
+    };
+    esp_err_t err = esp_timer_create(&timer_args, &s_heartbeat_timer);
+    if (err != ESP_OK) {
+      ESP_LOGE(TAG, "Failed to create heartbeat timer: %s", esp_err_to_name(err));
+      return err;
+    }
   }
 
   uint16_t broker_port = MQTT_BROKER_PORT;
@@ -243,17 +254,23 @@ esp_err_t mqtt_manager_start(void) {
 
   esp_mqtt_client_register_event(s_client, ESP_EVENT_ANY_ID, mqtt_event_handler, NULL);
 
-  err = esp_mqtt_client_start(s_client);
+  esp_err_t err = esp_mqtt_client_start(s_client);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "Failed to start MQTT client: %s", esp_err_to_name(err));
+    esp_mqtt_client_destroy(s_client);
+    s_client = NULL;
     return err;
   }
 
   ESP_LOGI(TAG, "MQTT client started, broker=%s:%u", broker_host, broker_port);
+  s_client_started = true;
   return ESP_OK;
 }
 
 esp_err_t mqtt_manager_publish(const char *topic, const char *data) {
+  if (!topic || !data) {
+    return ESP_ERR_INVALID_ARG;
+  }
   if (!s_connected || !s_client) {
     return ESP_FAIL;
   }
