@@ -6,8 +6,7 @@
 #include "rpc_json.h"
 
 JsonRpcResponse *m_wifi_sta_set(cJSON *params);
-JsonRpcResponse *m_wifi_sta_info(cJSON *params);
 JsonRpcResponse *m_wifi_ap_set(cJSON *params);
-JsonRpcResponse *m_wifi_ap_info(cJSON *params);
+JsonRpcResponse *m_wifi_info(cJSON *params);
 
 #endif // RPC_M_WIFI_H

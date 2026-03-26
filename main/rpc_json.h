@@ -31,7 +31,7 @@ typedef struct {
 
 JsonRpcRequest *jsonrpc_parse_request(const char *json);
 char *jsonrpc_response_to_json(JsonRpcResponse *resp);
-JsonRpcResponse *jsonrpc_response_create(cJSON *result, char *err_msg, int err_code);
+JsonRpcResponse *jsonrpc_response_create(cJSON *result, const char *err_msg, int err_code);
 void jsonrpc_response_free(JsonRpcResponse *resp);
 void jsonrpc_request_free(void *req);
 

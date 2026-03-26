@@ -1,15 +1,11 @@
 #include "rpc_json.h"
 
 #include "cJSON.h"
-#include "config.h"
-#include "esp_log.h"
-#include "esp_system.h"
-#include "gpio_control.h"
-#include "rpc_m.h"
 
+#include <stdbool.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
-#define TAG "JSONRPC"
 
 JsonRpcRequest *jsonrpc_parse_request(const char *json) {
     if (!json) {
@@ -34,6 +30,11 @@ JsonRpcRequest *jsonrpc_parse_request(const char *json) {
     }
     snprintf(req->jsonrpc, sizeof(req->jsonrpc), "%s", jsonrpc_item->valuestring);
     req->method = strdup(method_item->valuestring);
+    if (!req->method) {
+        cJSON_Delete(root);
+        free(req);
+        return NULL;
+    }
 
     req->id = cJSON_Duplicate(cJSON_GetObjectItem(root, "id"), true);
     req->params = cJSON_Duplicate(cJSON_GetObjectItem(root, "params"), true);
@@ -74,15 +75,36 @@ void jsonrpc_response_free(JsonRpcResponse *resp) {
     free(resp);
 }
 
-JsonRpcResponse *jsonrpc_response_create(cJSON *result, char *err_msg, int err_code) {
-    JsonRpcResponse *resp = malloc(sizeof(JsonRpcResponse));
+JsonRpcResponse *jsonrpc_response_create(cJSON *result, const char *err_msg, int err_code) {
+    JsonRpcResponse *resp = calloc(1, sizeof(JsonRpcResponse));
+    if (!resp) {
+        if (result) {
+            cJSON_Delete(result);
+        }
+        return NULL;
+    }
     strcpy(resp->jsonrpc, "2.0");
     resp->result = result;
     resp->id = NULL;
     if (err_msg) {
-        resp->error = malloc(sizeof(JsonRpcError));
+        resp->error = calloc(1, sizeof(JsonRpcError));
+        if (!resp->error) {
+            if (result) {
+                cJSON_Delete(result);
+            }
+            free(resp);
+            return NULL;
+        }
         resp->error->code = err_code;
         resp->error->message = strdup(err_msg);
+        if (!resp->error->message) {
+            if (result) {
+                cJSON_Delete(result);
+            }
+            free(resp->error);
+            free(resp);
+            return NULL;
+        }
     } else {
         resp->error = NULL;
     }
@@ -94,6 +116,9 @@ char *jsonrpc_response_to_json(JsonRpcResponse *resp) {
         return NULL;
 
     cJSON *root = cJSON_CreateObject();
+    if (!root) {
+        return NULL;
+    }
     cJSON_AddStringToObject(root, "jsonrpc", "2.0");
 
     if (resp->id) {

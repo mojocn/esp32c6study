@@ -11,6 +11,7 @@
 #include "rpc_m_wifi.h"
 
 #include <stdlib.h>
+#include <string.h>
 #include <strings.h>
 
 /* RPC Method declarations */
@@ -27,9 +28,10 @@ static const RpcMethodEntry rpc_methods[] = {
     {"Sys.Factory", m_sys_factory},
     {"Sys.Methods", m_sys_methods},
     {"Wifi.STA.Set", m_wifi_sta_set},
-    {"Wifi.STA.Info", m_wifi_sta_info},
+    {"Wifi.Info", m_wifi_info},
+    {"Wifi.STA.Info", m_wifi_info},
     {"Wifi.AP.Set", m_wifi_ap_set},
-    {"Wifi.AP.Info", m_wifi_ap_info},
+    {"Wifi.AP.Info", m_wifi_info},
     {"BLE.Info", m_ble_info},
     {"Sys.OTA", m_sys_ota},
     {"Ht.Info", m_ht_info},
@@ -52,6 +54,7 @@ static rpc_handler_t find_rpc_handler(const char *method) {
 }
 
 static JsonRpcResponse *m_sys_methods(cJSON *params) {
+  (void)params;
   cJSON *methods = cJSON_CreateArray();
   for (int i = 0; i < rpc_method_count; i++) {
     cJSON_AddItemToArray(methods, cJSON_CreateString(rpc_methods[i].method));
@@ -59,8 +62,26 @@ static JsonRpcResponse *m_sys_methods(cJSON *params) {
   return jsonrpc_response_create(methods, NULL, 0);
 }
 
+static char *rpc_strdup(const char *input) {
+  if (!input) {
+    return NULL;
+  }
+
+  size_t len = strlen(input);
+  char *copy = malloc(len + 1);
+  if (!copy) {
+    return NULL;
+  }
+  memcpy(copy, input, len + 1);
+  return copy;
+}
+
+static char *rpc_build_fallback_error(void) {
+  return rpc_strdup("{\"jsonrpc\":\"2.0\",\"error\":{\"code\":-32603,\"message\":\"Internal error\"},\"id\":null}");
+}
+
 char *rpc_process_request(const char *request_str) {
-  JsonRpcRequest *request = jsonrpc_parse_request(request_str); // This will log errors if the request is invalid, but
+  JsonRpcRequest *request = jsonrpc_parse_request(request_str);
   JsonRpcResponse *response = NULL;
   if (!request) {
     response = jsonrpc_response_create(NULL, "Parse error: invalid JSON", JSONRPC_PARSE_ERROR);
@@ -76,9 +97,21 @@ char *rpc_process_request(const char *request_str) {
       response = jsonrpc_response_create(NULL, "Method not found", JSONRPC_METHOD_NOT_FOUND);
     }
   }
-  response->id = cJSON_Duplicate(request->id, true);
+
+  if (!response) {
+    jsonrpc_request_free(request);
+    return rpc_build_fallback_error();
+  }
+
+  if (request && request->id) {
+    response->id = cJSON_Duplicate(request->id, true);
+  }
+
   char *response_str = jsonrpc_response_to_json(response);
   jsonrpc_response_free(response);
   jsonrpc_request_free(request);
+  if (!response_str) {
+    return rpc_build_fallback_error();
+  }
   return response_str;
 }
