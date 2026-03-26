@@ -11,7 +11,6 @@
 
 #include <stdlib.h>
 #include <string.h>
-#include <strings.h>
 
 static const char *wifi_mode_to_string(wifi_mode_t mode) {
   switch (mode) {

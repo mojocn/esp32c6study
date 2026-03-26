@@ -11,7 +11,6 @@
 #include "rpc_m_wifi.h"
 
 #include <stdlib.h>
-#include <string.h>
 #include <strings.h>
 
 /* RPC Method declarations */
