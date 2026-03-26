@@ -178,8 +178,10 @@ JsonRpcResponse *m_wifi_sta_set(cJSON *params) {
     return jsonrpc_response_create(NULL, "Failed to load config", JSONRPC_INTERNAL_ERROR);
   }
   config->wifi_sta_enabled = enable;
-  strncpy(config->wifi_sta_ssid, ssid, sizeof(config->wifi_sta_ssid) - 1);
-  strncpy(config->wifi_sta_password, password, sizeof(config->wifi_sta_password) - 1);
+  free(config->wifi_sta_ssid);
+  config->wifi_sta_ssid = strdup(ssid);
+  free(config->wifi_sta_password);
+  config->wifi_sta_password = strdup(password);
   config_save(config);
   wifi_config_apply(config);
   config_free(config);
@@ -211,8 +213,10 @@ JsonRpcResponse *m_wifi_ap_set(cJSON *params) {
     return jsonrpc_response_create(NULL, "Failed to load config", JSONRPC_INTERNAL_ERROR);
   }
   config->wifi_ap_enabled = enable;
-  strncpy(config->wifi_ap_ssid, ssid, sizeof(config->wifi_ap_ssid) - 1);
-  strncpy(config->wifi_ap_password, password, sizeof(config->wifi_ap_password) - 1);
+  free(config->wifi_ap_ssid);
+  config->wifi_ap_ssid = strdup(ssid);
+  free(config->wifi_ap_password);
+  config->wifi_ap_password = strdup(password);
   config_save(config);
   wifi_config_apply(config);
   config_free(config);

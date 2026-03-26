@@ -95,8 +95,8 @@ static AppConfig *app_config_default() {
   cfg->wifi_ap_password = NULL;
   cfg->wifi_ap_enabled = true;
 
-  cfg->wifi_sta_ssid = "Shelly Asia";
-  cfg->wifi_sta_password = "Asia20211220";
+  cfg->wifi_sta_ssid = strdup_safe("Shelly Asia");
+  cfg->wifi_sta_password = strdup_safe("Asia20211220");
   cfg->wifi_sta_enabled = true;
 
   return cfg;
