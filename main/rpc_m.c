@@ -1,5 +1,6 @@
 #include "rpc_m.h"
 
+#include "buzzer.h"
 #include "esp_log.h"
 #include "esp_system.h"
 #include "rpc_json.h"
@@ -9,7 +10,6 @@
 #include "rpc_m_light.h"
 #include "rpc_m_sys.h"
 #include "rpc_m_wifi.h"
-
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
@@ -78,6 +78,8 @@ static char *rpc_strdup(const char *input) {
 static char *rpc_build_fallback_error(void) { return rpc_strdup("{\"jsonrpc\":\"2.0\",\"error\":{\"code\":-32603,\"message\":\"Internal error\"},\"id\":null}"); }
 
 char *rpc_process_request(const char *request_str) {
+
+  buzzer_beep(200); // 每次收到请求时发出短促的蜂鸣声，提示用户有新的请求到来
   JsonRpcRequest *request = jsonrpc_parse_request(request_str);
   JsonRpcResponse *response = NULL;
   if (!request) {
@@ -94,7 +96,6 @@ char *rpc_process_request(const char *request_str) {
       response = jsonrpc_response_create(NULL, "Method not found", JSONRPC_METHOD_NOT_FOUND);
     }
   }
-
   if (!response) {
     jsonrpc_request_free(request);
     return rpc_build_fallback_error();

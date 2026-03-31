@@ -27,9 +27,4 @@ void buzzer_off(void);
  */
 void buzzer_beep(uint32_t duration_ms);
 
-/**
- * @brief Run a demo: buzzer ON 5 s → OFF 5 s, repeated 4 times (runs in background task)
- */
-void buzzer_demo(void);
-
 #endif // BUZZER_H

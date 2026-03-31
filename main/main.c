@@ -43,7 +43,7 @@ void app_main(void) {
   max7219_init();
 
   /* Initialize buzzer and run demo (4x on/off every 5s) */
-  // buzzer_init();
+  buzzer_init();
   // buzzer_demo();
 
   /* Initialize WiFi (must be before BLE to allow BLE provisioning if needed) */
