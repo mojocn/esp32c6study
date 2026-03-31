@@ -27,15 +27,14 @@ static const RpcMethodEntry rpc_methods[] = {
     {"Sys.Reboot", m_sys_reboot},
     {"Sys.Factory", m_sys_factory},
     {"Sys.Methods", m_sys_methods},
-    {"Wifi.STA.Set", m_wifi_sta_set},
+    {"Wifi.Sta.Set", m_wifi_sta_set},
+    {"Wifi.Ap.Set", m_wifi_ap_set},
     {"Wifi.Info", m_wifi_info},
-    {"Wifi.STA.Info", m_wifi_info},
-    {"Wifi.AP.Set", m_wifi_ap_set},
-    {"Wifi.AP.Info", m_wifi_info},
-    {"BLE.Info", m_ble_info},
-    {"Sys.OTA", m_sys_ota},
+    {"Ble.Info", m_ble_info},
+    {"Sys.Ota", m_sys_ota},
     {"Ht.Info", m_ht_info},
-    {"Light.Set", m_light_set},
+    {"Light.Led.Set", m_light_led_set},
+    {"Light.Rgb.Set", m_light_rgb_set},
     {"Config.Get", m_config_get},
     {"Config.Set", m_config_set},
 };
@@ -76,9 +75,7 @@ static char *rpc_strdup(const char *input) {
   return copy;
 }
 
-static char *rpc_build_fallback_error(void) {
-  return rpc_strdup("{\"jsonrpc\":\"2.0\",\"error\":{\"code\":-32603,\"message\":\"Internal error\"},\"id\":null}");
-}
+static char *rpc_build_fallback_error(void) { return rpc_strdup("{\"jsonrpc\":\"2.0\",\"error\":{\"code\":-32603,\"message\":\"Internal error\"},\"id\":null}"); }
 
 char *rpc_process_request(const char *request_str) {
   JsonRpcRequest *request = jsonrpc_parse_request(request_str);

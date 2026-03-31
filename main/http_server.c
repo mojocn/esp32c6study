@@ -11,29 +11,34 @@ static const char *TAG = "HTTP";
 /* JSON-RPC Request Handler */
 #define JSONRPC_MAX_BODY 2048
 
+static void http_send_err(httpd_req_t *req, const char *message, int code) {
+  httpd_resp_set_status(req, "400 Bad Request");
+
+  JsonRpcResponse *response = jsonrpc_response_create(NULL, message, code);
+  char *json_str = jsonrpc_response_to_json(response);
+  jsonrpc_response_free(response);
+  httpd_resp_sendstr(req, json_str);
+  free(json_str);
+}
+
 static esp_err_t jsonrpc_handler(httpd_req_t *req) {
   char *buf = NULL;
   char *response_str = NULL;
   size_t buf_len = req->content_len;
-
+  httpd_resp_set_type(req, "application/json");
   if (buf_len == 0) {
-    httpd_resp_set_type(req, "application/json");
-
-    httpd_resp_sendstr(req, "{\"jsonrpc\":\"2.0\",\"error\":{\"code\":-32600,\"message\":\"Empty request\"},\"id\":null}");
+    http_send_err(req, "Empty request", JSONRPC_INVALID_REQUEST);
     return ESP_OK;
   }
 
   if (buf_len > JSONRPC_MAX_BODY) {
-    httpd_resp_set_type(req, "application/json");
-    httpd_resp_set_status(req, "413 Payload Too Large");
-    httpd_resp_sendstr(req, "{\"jsonrpc\":\"2.0\",\"error\":{\"code\":-32600,\"message\":\"Request body too large\"},\"id\":null}");
+    http_send_err(req, "Request body too large", JSONRPC_INVALID_REQUEST);
     return ESP_OK;
   }
 
   buf = malloc(buf_len + 1);
   if (buf == NULL) {
-    httpd_resp_set_type(req, "application/json");
-    httpd_resp_sendstr(req, "{\"jsonrpc\":\"2.0\",\"error\":{\"code\":-32603,\"message\":\"Memory allocation failed\"},\"id\":null}");
+    http_send_err(req, "Memory allocation failed", JSONRPC_INTERNAL_ERROR);
     return ESP_OK;
   }
 
@@ -45,6 +50,7 @@ static esp_err_t jsonrpc_handler(httpd_req_t *req) {
         continue; /* Retry until content_len bytes are read */
       }
       free(buf);
+      http_send_err(req, "Failed to receive request", JSONRPC_INTERNAL_ERROR);
       return ESP_FAIL;
     }
     received += (size_t)ret;
@@ -57,14 +63,12 @@ static esp_err_t jsonrpc_handler(httpd_req_t *req) {
   free(buf);
 
   if (response_str != NULL) {
-    httpd_resp_set_type(req, "application/json");
     httpd_resp_sendstr(req, response_str);
     free(response_str);
   } else {
     httpd_resp_set_status(req, "204 No Content");
     httpd_resp_send(req, NULL, 0);
   }
-
   return ESP_OK;
 }
 

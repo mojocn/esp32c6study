@@ -8,7 +8,8 @@
 #include "esp_netif.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "gpio_control.h"
+#include "gpio_led.h"
+#include "gpio_rgb.h"
 #include "http_server.h"
 #include "max7219.h"
 #include "mqtt_manager.h"
@@ -30,10 +31,10 @@ void app_main(void) {
   wifi_config_apply(config);
 
   /* Initialize GPIO */
-  // gpio_control_init();
+  gpio_led_init();
 
   /* Initialize RGB LED */
-  // rgb_led_init();
+  gpio_rgb_init();
 
   /* Initialize DHT11 temperature & humidity sensor */
   dht11_init();
